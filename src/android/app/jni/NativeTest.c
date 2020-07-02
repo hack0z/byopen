@@ -210,7 +210,5 @@ static by_bool_t jni_System_loadLibrary(JNIEnv* env, by_char_t const* libraryNam
  */
 JNIEXPORT jboolean Java_byopen_sample_NativeTest_test(JNIEnv* env, jclass jthis)
 {
-    by_trace("jni_System_load %d", jni_System_load(env, "/system/lib64/libchrome.so"));
-    by_trace("jni_System_loadLibrary %d", jni_System_loadLibrary(env, "chrome"));
     return by_true;
 }

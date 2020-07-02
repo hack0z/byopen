@@ -60,7 +60,7 @@ extern "C" {
 #endif
 
 // trace
-#ifdef by_DEBUG
+#ifdef BY_DEBUG
 #   define by_tracef(fmt, arg ...)              by_printf(fmt, ## arg)
 #   define by_trace(fmt, arg ...)               by_printf(fmt "\n", ## arg)
 #   define by_trace_line(fmt, arg ...)          by_printf(fmt " at func: %s, line: %d, file: %s\n", ##arg, __FUNCTION__, __LINE__, __FILE__)

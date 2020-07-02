@@ -5,4 +5,6 @@ public class NativeTest {
         System.loadLibrary("testjni");
     }
     public static native boolean test();
+    public static native boolean validFromMaps(String libraryName);
+
 }
