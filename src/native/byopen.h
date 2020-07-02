@@ -25,10 +25,52 @@
 extern "C" {
 #endif
 
-/* ///////////////////////////////////////////////////////////////////////
+/* //////////////////////////////////////////////////////////////////////////////////////
  * includes
  */
 #include "prefix.h"
+
+/* //////////////////////////////////////////////////////////////////////////////////////
+ * types
+ */
+
+/// the dlopen flag enum
+typedef enum __by_dlopen_flag_e
+{
+    BY_RTLD_LAZY    = 1
+,   BY_RTLD_NOW     = 2
+
+}by_dlopen_flag_e;
+
+/* //////////////////////////////////////////////////////////////////////////////////////
+ * interfaces
+ */
+
+/*! The function dlopen() loads the dynamic library and returns an opaque "handle".
+ *
+ * @param filename  the dynamic library file named by the null-terminated string filename 
+ * @param flag      the load flag
+ *
+ * @return          the dynamic library handle
+ */
+by_pointer_t        by_dlopen(by_char_t const* filename, by_int_t flag);
+
+/*! get the address where that symbol is loaded into memory
+ *
+ * @param handle    the dynamic library handle
+ *
+ * @return          the symbol address
+ */
+by_pointer_t        by_dlsym(by_pointer_t handle, by_char_t const* symbol);
+
+/*! It decrements the reference count on the dynamic library handle handle. 
+ * If the reference count drops to zero and no other loaded libraries use symbols in it, then the dynamic library is unloaded. 
+ *
+ * @param handle    the dynamic library handle
+ *
+ * @return          0 on success, and nonzero on error
+ */
+by_int_t            by_dlclose(by_pointer_t handle);
 
 #ifdef __cplusplus
 }

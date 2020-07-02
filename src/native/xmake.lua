@@ -1,5 +1,5 @@
 target("byopen")
     set_kind("static")
-    add_files("*.c")
+    add_files("byopen_$(os).c")
     add_includedirs(".", {interface = true})
     add_headerfiles("*.h")

@@ -15,7 +15,7 @@
  * Copyright (C) 2020-present, TBOOX Open Source Group.
  *
  * @author      ruki
- * @file        byopen.c
+ * @file        byopen_ios.c
  *
  */
 
@@ -23,3 +23,19 @@
  * includes
  */
 #include "prefix.h"
+
+/* ///////////////////////////////////////////////////////////////////////
+ * implementation
+ */
+by_pointer_t by_dlopen(by_char_t const* filename, by_int_t flag)
+{
+    return by_null;
+}
+by_pointer_t by_dlsym(by_pointer_t handle, by_char_t const* symbol)
+{
+    return by_null;
+}
+by_int_t by_dlclose(by_pointer_t handle)
+{
+    return 0;
+}

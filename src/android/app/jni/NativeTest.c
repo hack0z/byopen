@@ -96,7 +96,12 @@ static jobject jni_Class_getDeclaredMethod(JNIEnv* env)
     return (jstring)(*env)->PopLocalFrame(env, getDeclaredMethod_method);
 }
 
-/* System.load(libraryPath)
+/* load library via system call
+ *
+ * @see http://weishu.me/2018/06/07/free-reflection-above-android-p/
+ * https://github.com/tiann/FreeReflection/blob/c995ef100f39c2eb2d7c344384ca06e8c13b9a4c/library/src/main/java/me/weishu/reflection/Reflection.java#L23-L34
+ *
+ * System.load(libraryPath)
  *
  * @code
     Method forName = Class.class.getDeclaredMethod("forName", String.class);
