@@ -1,0 +1,12 @@
+# build cache
+.xmake
+.gradle
+build/
+
+# MacOS cache
+.DS_Store
+
+# Other cache
+.idea
+local.properties
+
