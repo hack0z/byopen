@@ -208,7 +208,38 @@ static by_bool_t jni_System_loadLibrary(JNIEnv* env, by_char_t const* libraryNam
 /* //////////////////////////////////////////////////////////////////////////////////////
  * interfaces
  */
-JNIEXPORT jboolean Java_byopen_sample_NativeTest_test(JNIEnv* env, jclass jthis)
+JNIEXPORT jboolean Java_byopen_sample_NativeTest_loadLibrary(JNIEnv* env, jclass jthis, jstring libraryName)
 {
-    return by_true;
+    by_bool_t ok = by_false;
+    by_char_t const* libraryName_cstr = (*env)->GetStringUTFChars(env, libraryName, by_null);
+    if (libraryName_cstr)
+    {
+        ok = jni_System_loadLibrary(env, libraryName_cstr);
+        (*env)->ReleaseStringUTFChars(env, libraryName, libraryName_cstr);
+    }
+    return ok;
+}
+JNIEXPORT jboolean Java_byopen_sample_NativeTest_validFromMaps(JNIEnv* env, jclass jthis, jstring libraryName)
+{
+    by_bool_t found = by_false;
+    by_char_t const* libraryName_cstr = (*env)->GetStringUTFChars(env, libraryName, by_null);
+    if (libraryName_cstr)
+    {
+        FILE* f = fopen("/proc/self/maps", "r");
+        if (f)
+        {
+            char line[512];
+            while (fgets(line, sizeof(line), f))
+            {
+                if (strstr(line, libraryName_cstr))
+                {
+                    found = by_true;
+                    break;
+                }
+            }
+            fclose(f);
+        }
+        (*env)->ReleaseStringUTFChars(env, libraryName, libraryName_cstr);
+    }
+    return found;
 }

@@ -12,33 +12,51 @@ import dyopen.lib.SystemLoader;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "byOpen";
+    private static final String SYSTEM_LIBRARY = "chrome";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        Button origin_loadLibraryBtn = (Button) findViewById(R.id.origin_loadLibrary);
+        final Button origin_loadLibraryBtn = (Button) findViewById(R.id.origin_loadLibrary);
         origin_loadLibraryBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                System.loadLibrary("chrome");
+                try {
+                    System.loadLibrary(SYSTEM_LIBRARY);
+                    if (NativeTest.validFromMaps(SYSTEM_LIBRARY)) {
+                        origin_loadLibraryBtn.setText("load ok!");
+                    } else {
+                        origin_loadLibraryBtn.setText("load failed!");
+                    }
+                } catch (Throwable e) {
+                    origin_loadLibraryBtn.setText("load failed!");
+                }
             }
         });
 
-        Button byopen_loadLibraryBtn = (Button) findViewById(R.id.byopen_loadLibrary);
+        final Button byopen_loadLibraryBtn = (Button) findViewById(R.id.byopen_loadLibrary);
         byopen_loadLibraryBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                SystemLoader.loadLibrary("chrome");
+                if (SystemLoader.loadLibrary(SYSTEM_LIBRARY) && NativeTest.validFromMaps(SYSTEM_LIBRARY)) {
+                    byopen_loadLibraryBtn.setText("load ok!");
+                } else {
+                    byopen_loadLibraryBtn.setText("load failed!");
+                }
             }
         });
 
-        Button dlopenBtn = (Button) findViewById(R.id.byopen_dlopen);
+        final Button dlopenBtn = (Button) findViewById(R.id.byopen_dlopen);
         dlopenBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                NativeTest.test();
+                if (NativeTest.loadLibrary(SYSTEM_LIBRARY) && NativeTest.validFromMaps(SYSTEM_LIBRARY)) {
+                    dlopenBtn.setText("load ok!");
+                } else {
+                    dlopenBtn.setText("load failed!");
+                }
             }
         });
     }
