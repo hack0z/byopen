@@ -23,7 +23,7 @@ The current implementation is theoretically quite general, at least I tested it 
 
 #### Related principles
 
-The specific implementation principle is relatively simple, mainly based on [a simple way to bypass the restrictions of Android P on non-SDK interface](http://weishu.me/2018/06/07/free-reflection-above-android -p/) idea and implementation.
+The specific implementation principle is relatively simple, mainly based on [a simple way to bypass the restrictions of Android P on non-SDK interface](http://weishu.me/2018/06/07/free-reflection-above-android-p/) idea and implementation.
 
 Although the main purpose of this article is to bypass the hide api, the way it pretends to be a system call in it can also be used in `System.loadLibrary`, which makes the system think that the system itself is calling System. loadLibrary`
 
