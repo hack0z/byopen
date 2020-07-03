@@ -12,8 +12,8 @@ import dyopen.lib.SystemLoader;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "byOpen";
-    private static final String SYSTEM_LIBRARY = "chrome";
-    private static final String SYMBOL_NAME = "_ZN4base10GetHomeDirEv";
+    private static final String SYSTEM_LIBRARY = "curl";
+    private static final String SYMBOL_NAME = "curl_version";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
