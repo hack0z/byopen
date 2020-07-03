@@ -15,27 +15,29 @@
  * Copyright (C) 2020-present, TBOOX Open Source Group.
  *
  * @author      ruki
- * @file        byopen_ios.c
+ * @file        demo.c
  *
  */
 
 /* //////////////////////////////////////////////////////////////////////////////////////
  * includes
  */
-#include "prefix.h"
+#include "byopen.h"
 
 /* //////////////////////////////////////////////////////////////////////////////////////
  * implementation
  */
-by_pointer_t by_dlopen(by_char_t const* filename, by_int_t flag)
+by_int_t main(by_int_t argc, by_char_t** argv)
 {
-    return by_null;
-}
-by_pointer_t by_dlsym(by_pointer_t handle, by_char_t const* symbol)
-{
-    return by_null;
-}
-by_int_t by_dlclose(by_pointer_t handle)
-{
+    by_pointer_t handle = by_dlopen(argv[1], BY_RTLD_LAZY);
+    if (handle)
+    {
+        by_pointer_t addr = by_dlsym(handle, argv[2]);
+        if (addr)
+        {
+            by_trace("dlopen(%s): %s -> %p", argv[1], argv[2], addr);
+        }
+        by_dlclose(handle);
+    }
     return 0;
 }

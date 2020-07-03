@@ -33,4 +33,7 @@ task("apk_test")
         os.exec("adb logcat -s byOpen")
     end)
 
-includes("src/native", "src/android/app/jni")
+includes("src/native", "src/demo")
+if is_plat("android") then
+    includes("src/android/app/jni")
+end
