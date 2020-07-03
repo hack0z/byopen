@@ -34,7 +34,6 @@ JNIEXPORT jboolean Java_byopen_sample_NativeTest_loadLibrary(JNIEnv* env, jclass
     by_char_t const* symbolName_cstr = (*env)->GetStringUTFChars(env, symbolName, by_null);
     if (libraryName_cstr && symbolName_cstr)
     {
-        by_bindenv(env);
         by_pointer_t handle = by_dlopen(libraryName_cstr, BY_RTLD_LAZY);
         if (handle)
         {

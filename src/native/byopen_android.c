@@ -83,195 +83,6 @@ __thread JNIEnv* g_tls_jnienv = by_null;
 /* //////////////////////////////////////////////////////////////////////////////////////
  * private implementation
  */
-static by_void_t by_jni_clearException(JNIEnv* env, by_bool_t report)
-{
-    jthrowable e = report? (*env)->ExceptionOccurred(env) : by_null;
-    (*env)->ExceptionClear(env);
-    if (e)
-    {
-        jclass clazz = (*env)->GetObjectClass(env, e);
-        jmethodID printStackTrace_id = (*env)->GetMethodID(env, clazz, "printStackTrace", "()V");
-        if (!(*env)->ExceptionCheck(env) && printStackTrace_id)
-            (*env)->CallVoidMethod(env, e, printStackTrace_id);
-        if ((*env)->ExceptionCheck(env))
-            (*env)->ExceptionClear(env);
-    }
-}
-static jobject by_jni_Class_getDeclaredMethod(JNIEnv* env)
-{
-    // check
-    by_assert_and_check_return_val(env, by_null);
-
-    // push
-    if ((*env)->PushLocalFrame(env, 10) < 0) return by_null;
-
-    // get unreachable memory info
-    jboolean check = by_false;
-    jobject  getDeclaredMethod_method = by_null;
-    do
-    {
-        // get class
-        jclass clazz = (*env)->FindClass(env, "java/lang/Class");
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && clazz);
-
-        // get string class
-        jclass string_clazz = (*env)->FindClass(env, "java/lang/String");
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && string_clazz);
-
-        // get class/array class
-        jclass classarray_clazz = (*env)->FindClass(env, "[Ljava/lang/Class;");
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && classarray_clazz);
-
-        // get getDeclaredMethod id
-        jmethodID getDeclaredMethod_id = (*env)->GetMethodID(env, clazz, "getDeclaredMethod", "(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;");
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && getDeclaredMethod_id);
-
-        // get getDeclaredMethod name
-        jstring getDeclaredMethod_name = (*env)->NewStringUTF(env, "getDeclaredMethod");
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && getDeclaredMethod_name);
-
-        // get getDeclaredMethod args
-        jobjectArray getDeclaredMethod_args = (*env)->NewObjectArray(env, 2, clazz, by_null);
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && getDeclaredMethod_args);
-
-        (*env)->SetObjectArrayElement(env, getDeclaredMethod_args, 0, string_clazz);
-        (*env)->SetObjectArrayElement(env, getDeclaredMethod_args, 1, classarray_clazz);
-
-        // Method getDeclaredMethod = Class.class.getDeclaredMethod("getDeclaredMethod", String.class, Class[].class);
-        getDeclaredMethod_method = (jobject)(*env)->CallObjectMethod(env, clazz, getDeclaredMethod_id, getDeclaredMethod_name, getDeclaredMethod_args);
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && getDeclaredMethod_method);
-
-    } while (0);
-
-    // exception? clear it
-    if (check)
-    {
-        getDeclaredMethod_method = by_null;
-        by_jni_clearException(env, by_true);
-    }
-    return (jstring)(*env)->PopLocalFrame(env, getDeclaredMethod_method);
-}
-
-/* load library via system call
- *
- * @see http://weishu.me/2018/06/07/free-reflection-above-android-p/
- * https://github.com/tiann/FreeReflection/blob/c995ef100f39c2eb2d7c344384ca06e8c13b9a4c/library/src/main/java/me/weishu/reflection/Reflection.java#L23-L34
- *
- * System.load(libraryPath)
- *
- * @code
-    Method forName = Class.class.getDeclaredMethod("forName", String.class);
-    Method getDeclaredMethod = Class.class.getDeclaredMethod("getDeclaredMethod", String.class, Class[].class);
-    Class<?> systemClass = (Class<?>)forName.invoke(null, "java.lang.System");
-    Method load = (Method)getDeclaredMethod.invoke(systemClass, "load", new Class[]{String.class});
-    load.invoke(systemClass, libraryPath);
- * @endcode
- *
- * System.loadLibrary(libraryName)
- *
- * @code
-    Method forName = Class.class.getDeclaredMethod("forName", String.class);
-    Method getDeclaredMethod = Class.class.getDeclaredMethod("getDeclaredMethod", String.class, Class[].class);
-    Class<?> systemClass = (Class<?>)forName.invoke(null, "java.lang.System");
-    Method loadLibrary = (Method)getDeclaredMethod.invoke(systemClass, "loadLibrary", new Class[]{String.class});
-    loadLibrary.invoke(systemClass, libraryName);
- * @endcode
- */
-static by_bool_t by_jni_System_load_or_loadLibrary(JNIEnv* env, by_char_t const* loadName, by_char_t const* libraryPath)
-{
-    // check
-    by_assert_and_check_return_val(env && loadName && libraryPath, by_false);
-
-    // push
-    if ((*env)->PushLocalFrame(env, 20) < 0) return by_false;
-
-    // do load 
-    jboolean check = by_false;
-    do
-    {
-        // get getDeclaredMethod method
-        jobject getDeclaredMethod_method = by_jni_Class_getDeclaredMethod(env);
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && getDeclaredMethod_method);
-
-        // get class
-        jclass clazz = (*env)->FindClass(env, "java/lang/Class");
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && clazz);
-
-        // get object class
-        jclass object_clazz = (*env)->FindClass(env, "java/lang/Object");
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && object_clazz);
-
-        // get string class
-        jclass string_clazz = (*env)->FindClass(env, "java/lang/String");
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && string_clazz);
-
-        // get system class
-        jclass system_clazz = (*env)->FindClass(env, "java/lang/System");
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && system_clazz);
-
-        // get method class
-        jclass method_clazz = (*env)->FindClass(env, "java/lang/reflect/Method");
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && method_clazz);
-
-        // get getDeclaredMethod_method.invoke id
-        jmethodID invoke_id = (*env)->GetMethodID(env, method_clazz, "invoke", "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;");
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && invoke_id);
-
-        // get load name
-        jstring load_name = (*env)->NewStringUTF(env, loadName);
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && load_name);
-
-        // get invoke args
-        jobjectArray invoke_args = (*env)->NewObjectArray(env, 2, object_clazz, by_null);
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && invoke_args);
-
-        // get load args
-        jobjectArray load_args = (*env)->NewObjectArray(env, 1, clazz, string_clazz);
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && load_args);
-
-        (*env)->SetObjectArrayElement(env, invoke_args, 0, load_name);
-        (*env)->SetObjectArrayElement(env, invoke_args, 1, load_args);
-
-        // Method load = (Method)getDeclaredMethod.invoke(systemClass, "load", new Class[]{String.class}); 
-        jobject load_method = (jobject)(*env)->CallObjectMethod(env, getDeclaredMethod_method, invoke_id, system_clazz, invoke_args);
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && load_method);
-
-        // load.invoke(systemClass, libraryPath)
-        jstring libraryPath_jstr = (*env)->NewStringUTF(env, libraryPath);
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && libraryPath_jstr);
-        
-        invoke_args = (*env)->NewObjectArray(env, 1, object_clazz, libraryPath_jstr);
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && invoke_args);
-
-        (*env)->CallObjectMethod(env, load_method, invoke_id, system_clazz, invoke_args);
-        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)));
-
-    } while (0);
-
-    // exception? clear it
-    if (check) by_jni_clearException(env, by_true);
-    (*env)->PopLocalFrame(env, by_null);
-    return !check;
-}
-
-// System.load(libraryPath)
-static by_bool_t by_jni_System_load(JNIEnv* env, by_char_t const* libraryPath)
-{
-    return by_jni_System_load_or_loadLibrary(env, "load", libraryPath);
-}
-
-// System.loadLibrary(libraryName)
-static by_bool_t by_jni_System_loadLibrary(JNIEnv* env, by_char_t const* libraryName)
-{
-    return by_jni_System_load_or_loadLibrary(env, "loadLibrary", libraryName);
-}
-
-// get the current jni environment
-static JNIEnv* by_jni_getenv()
-{
-    // TODO we can also get it from the current runtime
-    return g_tls_jnienv;
-}
 
 // find the base address and real path from the maps
 static by_pointer_t by_fake_find_maps(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
@@ -568,14 +379,226 @@ static by_fake_dlctx_ref_t by_fake_dlopen(by_char_t const* filename, by_int_t fl
     }
     return dlctx;
 }
+static by_void_t by_jni_clearException(JNIEnv* env, by_bool_t report)
+{
+    jthrowable e = report? (*env)->ExceptionOccurred(env) : by_null;
+    (*env)->ExceptionClear(env);
+    if (e)
+    {
+        jclass clazz = (*env)->GetObjectClass(env, e);
+        jmethodID printStackTrace_id = (*env)->GetMethodID(env, clazz, "printStackTrace", "()V");
+        if (!(*env)->ExceptionCheck(env) && printStackTrace_id)
+            (*env)->CallVoidMethod(env, e, printStackTrace_id);
+        if ((*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env);
+    }
+}
+static jobject by_jni_Class_getDeclaredMethod(JNIEnv* env)
+{
+    // check
+    by_assert_and_check_return_val(env, by_null);
+
+    // push
+    if ((*env)->PushLocalFrame(env, 10) < 0) return by_null;
+
+    // get unreachable memory info
+    jboolean check = by_false;
+    jobject  getDeclaredMethod_method = by_null;
+    do
+    {
+        // get class
+        jclass clazz = (*env)->FindClass(env, "java/lang/Class");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && clazz);
+
+        // get string class
+        jclass string_clazz = (*env)->FindClass(env, "java/lang/String");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && string_clazz);
+
+        // get class/array class
+        jclass classarray_clazz = (*env)->FindClass(env, "[Ljava/lang/Class;");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && classarray_clazz);
+
+        // get getDeclaredMethod id
+        jmethodID getDeclaredMethod_id = (*env)->GetMethodID(env, clazz, "getDeclaredMethod", "(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && getDeclaredMethod_id);
+
+        // get getDeclaredMethod name
+        jstring getDeclaredMethod_name = (*env)->NewStringUTF(env, "getDeclaredMethod");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && getDeclaredMethod_name);
+
+        // get getDeclaredMethod args
+        jobjectArray getDeclaredMethod_args = (*env)->NewObjectArray(env, 2, clazz, by_null);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && getDeclaredMethod_args);
+
+        (*env)->SetObjectArrayElement(env, getDeclaredMethod_args, 0, string_clazz);
+        (*env)->SetObjectArrayElement(env, getDeclaredMethod_args, 1, classarray_clazz);
+
+        // Method getDeclaredMethod = Class.class.getDeclaredMethod("getDeclaredMethod", String.class, Class[].class);
+        getDeclaredMethod_method = (jobject)(*env)->CallObjectMethod(env, clazz, getDeclaredMethod_id, getDeclaredMethod_name, getDeclaredMethod_args);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && getDeclaredMethod_method);
+
+    } while (0);
+
+    // exception? clear it
+    if (check)
+    {
+        getDeclaredMethod_method = by_null;
+        by_jni_clearException(env, by_true);
+    }
+    return (jstring)(*env)->PopLocalFrame(env, getDeclaredMethod_method);
+}
+
+/* load library via system call
+ *
+ * @see http://weishu.me/2018/06/07/free-reflection-above-android-p/
+ * https://github.com/tiann/FreeReflection/blob/c995ef100f39c2eb2d7c344384ca06e8c13b9a4c/library/src/main/java/me/weishu/reflection/Reflection.java#L23-L34
+ *
+ * System.load(libraryPath)
+ *
+ * @code
+    Method forName = Class.class.getDeclaredMethod("forName", String.class);
+    Method getDeclaredMethod = Class.class.getDeclaredMethod("getDeclaredMethod", String.class, Class[].class);
+    Class<?> systemClass = (Class<?>)forName.invoke(null, "java.lang.System");
+    Method load = (Method)getDeclaredMethod.invoke(systemClass, "load", new Class[]{String.class});
+    load.invoke(systemClass, libraryPath);
+ * @endcode
+ *
+ * System.loadLibrary(libraryName)
+ *
+ * @code
+    Method forName = Class.class.getDeclaredMethod("forName", String.class);
+    Method getDeclaredMethod = Class.class.getDeclaredMethod("getDeclaredMethod", String.class, Class[].class);
+    Class<?> systemClass = (Class<?>)forName.invoke(null, "java.lang.System");
+    Method loadLibrary = (Method)getDeclaredMethod.invoke(systemClass, "loadLibrary", new Class[]{String.class});
+    loadLibrary.invoke(systemClass, libraryName);
+ * @endcode
+ */
+static by_bool_t by_jni_System_load_or_loadLibrary(JNIEnv* env, by_char_t const* loadName, by_char_t const* libraryPath)
+{
+    // check
+    by_assert_and_check_return_val(env && loadName && libraryPath, by_false);
+
+    // push
+    if ((*env)->PushLocalFrame(env, 20) < 0) return by_false;
+
+    // do load 
+    jboolean check = by_false;
+    do
+    {
+        // get getDeclaredMethod method
+        jobject getDeclaredMethod_method = by_jni_Class_getDeclaredMethod(env);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && getDeclaredMethod_method);
+
+        // get class
+        jclass clazz = (*env)->FindClass(env, "java/lang/Class");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && clazz);
+
+        // get object class
+        jclass object_clazz = (*env)->FindClass(env, "java/lang/Object");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && object_clazz);
+
+        // get string class
+        jclass string_clazz = (*env)->FindClass(env, "java/lang/String");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && string_clazz);
+
+        // get system class
+        jclass system_clazz = (*env)->FindClass(env, "java/lang/System");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && system_clazz);
+
+        // get method class
+        jclass method_clazz = (*env)->FindClass(env, "java/lang/reflect/Method");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && method_clazz);
+
+        // get getDeclaredMethod_method.invoke id
+        jmethodID invoke_id = (*env)->GetMethodID(env, method_clazz, "invoke", "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && invoke_id);
+
+        // get load name
+        jstring load_name = (*env)->NewStringUTF(env, loadName);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && load_name);
+
+        // get invoke args
+        jobjectArray invoke_args = (*env)->NewObjectArray(env, 2, object_clazz, by_null);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && invoke_args);
+
+        // get load args
+        jobjectArray load_args = (*env)->NewObjectArray(env, 1, clazz, string_clazz);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && load_args);
+
+        (*env)->SetObjectArrayElement(env, invoke_args, 0, load_name);
+        (*env)->SetObjectArrayElement(env, invoke_args, 1, load_args);
+
+        // Method load = (Method)getDeclaredMethod.invoke(systemClass, "load", new Class[]{String.class}); 
+        jobject load_method = (jobject)(*env)->CallObjectMethod(env, getDeclaredMethod_method, invoke_id, system_clazz, invoke_args);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && load_method);
+
+        // load.invoke(systemClass, libraryPath)
+        jstring libraryPath_jstr = (*env)->NewStringUTF(env, libraryPath);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && libraryPath_jstr);
+        
+        invoke_args = (*env)->NewObjectArray(env, 1, object_clazz, libraryPath_jstr);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && invoke_args);
+
+        (*env)->CallObjectMethod(env, load_method, invoke_id, system_clazz, invoke_args);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)));
+
+    } while (0);
+
+    // exception? clear it
+    if (check) by_jni_clearException(env, by_true);
+    (*env)->PopLocalFrame(env, by_null);
+    return !check;
+}
+
+// System.load(libraryPath)
+static by_bool_t by_jni_System_load(JNIEnv* env, by_char_t const* libraryPath)
+{
+    return by_jni_System_load_or_loadLibrary(env, "load", libraryPath);
+}
+
+// System.loadLibrary(libraryName)
+static by_bool_t by_jni_System_loadLibrary(JNIEnv* env, by_char_t const* libraryName)
+{
+    return by_jni_System_load_or_loadLibrary(env, "loadLibrary", libraryName);
+}
+
+/* get the current jni environment
+ *
+ * @see frameworks/base/core/jni/include/android_runtime/AndroidRuntime.h
+ *
+ * static AndroidRuntime* runtime = AndroidRuntime::getRuntime();
+ * static JavaVM* getJavaVM() { return mJavaVM; }
+ * static JNIEnv* getJNIEnv();
+ */
+static JNIEnv* by_jni_getenv()
+{
+    if (!g_tls_jnienv)
+    {
+        by_fake_dlctx_ref_t dlctx = by_fake_dlopen("libandroid_runtime.so", BY_RTLD_NOW);
+        if (dlctx)
+        {
+            typedef by_pointer_t (*getRuntime_t)();
+            typedef by_pointer_t (*getJNIEnv_t)(by_pointer_t);
+            getRuntime_t getRuntime = (getRuntime_t)by_fake_dlsym(dlctx, "_ZN7android14AndroidRuntime10getRuntimeEv");
+            getJNIEnv_t getJNIEnv = (getJNIEnv_t)by_fake_dlsym(dlctx, "_ZN7android14AndroidRuntime9getJNIEnvEv");
+            if (getRuntime)
+            {
+                by_pointer_t runtime = getRuntime();
+                if (runtime)
+                    g_tls_jnienv = getJNIEnv(runtime);
+            }
+            by_fake_dlclose(dlctx);
+        }
+
+        // trace
+        by_trace("get jnienv: %p", g_tls_jnienv);
+    }
+    return g_tls_jnienv;
+}
 
 /* //////////////////////////////////////////////////////////////////////////////////////
  * implementation
  */
-by_void_t by_bindenv(JNIEnv* env)
-{
-    g_tls_jnienv = env;
-}
 by_pointer_t by_dlopen(by_char_t const* filename, by_int_t flag)
 {
     // check
