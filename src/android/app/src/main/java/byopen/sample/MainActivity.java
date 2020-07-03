@@ -60,5 +60,17 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+
+        final Button validBtn = (Button) findViewById(R.id.valid_from_maps);
+        validBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (NativeTest.validFromMaps(SYSTEM_LIBRARY)) {
+                    validBtn.setText("valid ok!");
+                } else {
+                    validBtn.setText("valid failed!");
+                }
+            }
+        });
     }
 }

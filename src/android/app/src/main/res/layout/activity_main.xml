@@ -15,21 +15,27 @@
 
         <Button
             android:id="@+id/byopen_dlopen"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="[ByOpen]: dlopen" />
 
         <Button
             android:id="@+id/byopen_loadLibrary"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="[ByOpen]: System.loadLibrary" />
 
         <Button
             android:id="@+id/origin_loadLibrary"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="[Origin]: System.loadLibrary" />
+
+        <Button
+            android:id="@+id/valid_from_maps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="[Valid]: Find from maps" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
