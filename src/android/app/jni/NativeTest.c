@@ -41,7 +41,7 @@ JNIEXPORT jboolean Java_byopen_sample_NativeTest_loadLibrary(JNIEnv* env, jclass
             by_pointer_t addr = by_dlsym(handle, symbolName_cstr);
             if (addr)
             {
-#if 1
+#if 0
                 // test libcurl/curl_version()
                 typedef char* (*func_t)();
                 func_t func = (func_t)addr;
