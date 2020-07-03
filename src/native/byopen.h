@@ -46,6 +46,14 @@ typedef enum __by_dlopen_flag_e
  * interfaces
  */
 
+#ifdef __ANDROID__
+/*! bind jni environment for android
+ *
+ * @param env       the jni environment
+ */
+by_void_t           by_bindenv(JNIEnv* env);
+#endif
+
 /*! The function dlopen() loads the dynamic library and returns an opaque "handle".
  *
  * @param filename  the dynamic library file named by the null-terminated string filename 

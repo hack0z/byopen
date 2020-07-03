@@ -21,9 +21,12 @@
 
 package dyopen.lib;
 
+import android.os.Build;
 import android.util.Log;
 
 import java.lang.reflect.Method;
+
+import static android.os.Build.VERSION.SDK_INT;
 
 public class SystemLoader {
 
@@ -37,17 +40,21 @@ public class SystemLoader {
             System.load(libraryPath);
             return true;
         } catch (Throwable e) {
-            try {
+            if (SDK_INT >= Build.VERSION_CODES.P) {
+                try {
 
-                Method forName = Class.class.getDeclaredMethod("forName", String.class);
-                Method getDeclaredMethod = Class.class.getDeclaredMethod("getDeclaredMethod", String.class, Class[].class);
-                Class<?> systemClass = (Class<?>)forName.invoke(null, "java.lang.System");
-                Method load = (Method)getDeclaredMethod.invoke(systemClass, "load", new Class[]{String.class});
-                load.invoke(systemClass, libraryPath);
-                return true;
+                    Method forName = Class.class.getDeclaredMethod("forName", String.class);
+                    Method getDeclaredMethod = Class.class.getDeclaredMethod("getDeclaredMethod", String.class, Class[].class);
+                    Class<?> systemClass = (Class<?>) forName.invoke(null, "java.lang.System");
+                    Method load = (Method) getDeclaredMethod.invoke(systemClass, "load", new Class[]{String.class});
+                    load.invoke(systemClass, libraryPath);
+                    return true;
 
-            } catch (Throwable ex) {
-                Log.e(TAG, "load library failed:", ex);
+                } catch (Throwable ex) {
+                    Log.e(TAG, "load library failed:", ex);
+                }
+            } else {
+                Log.e(TAG, "load library failed:", e);
             }
         }
         return false;
@@ -61,17 +68,21 @@ public class SystemLoader {
             System.loadLibrary(libraryName);
             return true;
         } catch (Throwable e) {
-            try {
+            if (SDK_INT >= Build.VERSION_CODES.P) {
+                try {
 
-                Method forName = Class.class.getDeclaredMethod("forName", String.class);
-                Method getDeclaredMethod = Class.class.getDeclaredMethod("getDeclaredMethod", String.class, Class[].class);
-                Class<?> systemClass = (Class<?>)forName.invoke(null, "java.lang.System");
-                Method loadLibrary = (Method)getDeclaredMethod.invoke(systemClass, "loadLibrary", new Class[]{String.class});
-                loadLibrary.invoke(systemClass, libraryName);
-                return true;
+                    Method forName = Class.class.getDeclaredMethod("forName", String.class);
+                    Method getDeclaredMethod = Class.class.getDeclaredMethod("getDeclaredMethod", String.class, Class[].class);
+                    Class<?> systemClass = (Class<?>) forName.invoke(null, "java.lang.System");
+                    Method loadLibrary = (Method) getDeclaredMethod.invoke(systemClass, "loadLibrary", new Class[]{String.class});
+                    loadLibrary.invoke(systemClass, libraryName);
+                    return true;
 
-            } catch (Throwable ex) {
-                Log.e(TAG, "load library failed:", ex);
+                } catch (Throwable ex) {
+                    Log.e(TAG, "load library failed:", ex);
+                }
+            } else {
+                Log.e(TAG, "load library failed:", e);
             }
         }
         return false;

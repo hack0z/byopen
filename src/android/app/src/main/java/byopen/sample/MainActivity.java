@@ -13,6 +13,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "byOpen";
     private static final String SYSTEM_LIBRARY = "chrome";
+    private static final String SYMBOL_NAME = "_ZN4base10GetHomeDirEv";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
         dlopenBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (NativeTest.loadLibrary(SYSTEM_LIBRARY) && NativeTest.validFromMaps(SYSTEM_LIBRARY)) {
+                if (NativeTest.loadLibrary(SYSTEM_LIBRARY, SYMBOL_NAME) && NativeTest.validFromMaps(SYSTEM_LIBRARY)) {
                     dlopenBtn.setText("load ok!");
                 } else {
                     dlopenBtn.setText("load failed!");
