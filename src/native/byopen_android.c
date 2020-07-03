@@ -577,16 +577,10 @@ static JNIEnv* by_jni_getenv()
         by_fake_dlctx_ref_t dlctx = by_fake_dlopen("libandroid_runtime.so", BY_RTLD_NOW);
         if (dlctx)
         {
-            typedef by_pointer_t (*getRuntime_t)();
-            typedef by_pointer_t (*getJNIEnv_t)(by_pointer_t);
-            getRuntime_t getRuntime = (getRuntime_t)by_fake_dlsym(dlctx, "_ZN7android14AndroidRuntime10getRuntimeEv");
+            typedef by_pointer_t (*getJNIEnv_t)();
             getJNIEnv_t getJNIEnv = (getJNIEnv_t)by_fake_dlsym(dlctx, "_ZN7android14AndroidRuntime9getJNIEnvEv");
-            if (getRuntime)
-            {
-                by_pointer_t runtime = getRuntime();
-                if (runtime)
-                    g_tls_jnienv = getJNIEnv(runtime);
-            }
+            if (getJNIEnv)
+                g_tls_jnienv = getJNIEnv();
             by_fake_dlclose(dlctx);
         }
 
