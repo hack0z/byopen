@@ -1,70 +1,127 @@
 <div align="center">
-  <h1>byOpen</h1>
+  <h1>dyOpen</h1>
   <p>A dlopen library that bypasses mobile system limitation</p>
 </div>
 
-## Introduction ([中文](/README_zh.md))
+## 简介
 
-byOpen is a dlopen library that bypasses mobile system limitation.
+byOpen是一个绕过移动端系统限制的dlopen库。
 
-## Support features
+## 支持特性
 
 ### Android
 
-Support loading Android system library in App
+支持App中加载和使用Android系统库接口（即使maps中还没有被加载也支持）。
 
-For Android 7 and above, dlopen and System.load are restricted. Although there are libraries such as [Nougat_dlfunctions](https://github.com/avs333/Nougat_dlfunctions) on the Internet, they can bypass the loading restrictions by looking for the so library from maps.
+Android 7以上dlopen, System.load都是被限制调用的，虽然目前网上有[Nougat_dlfunctions](https://github.com/avs333/Nougat_dlfunctions)等库通过从maps中找so库来绕过加载限制。
 
-But for the so library in the app that has not been loaded into the maps, this method will not work.
+不过对于app中还没被加载到maps的so库，这种方式就不行了。
 
-And byOpen not only supports fake dlopen loading from maps, but also can add so library that has not been loaded into maps to bypass the system restrictions and force loading into use, to achieve a more generalized dlopen.
+而byOpen不仅支持fake dlopen方式从maps加载，还可以将还没加载到maps的so库绕过系统限制强行加载进来使用，实现更加通用化得dlopen。
 
-The current implementation is theoretically quite general, at least I tested it on Android 10, but it has been tested in full detail, please use your own evaluation.
+目前的实现方式理论上还是比较通用的，至少我这Android 10上测试ok，但还完整详细测试过，是否使用请自行评估。
 
-#### Related principles
+#### 相关原理
 
-The specific implementation principle is relatively simple, mainly based on [a simple way to bypass the restrictions of Android P on non-SDK interface](http://weishu.me/2018/06/07/free-reflection-above-android-p/) idea and implementation.
+具体实现原理还是比较简单的，主要还是借鉴了[一种绕过Android P对非SDK接口限制的简单方法](http://weishu.me/2018/06/07/free-reflection-above-android-p/)的思想和实现方式。
 
-Although the main purpose of this article is to bypass the hide api, the way it pretends to be a system call in it can also be used in `System.loadLibrary`, which makes the system think that the system itself is calling System. loadLibrary`
+虽然这篇文章中主要目的是为了绕过hide api，不过它里面使用的将自己假装成系统调用的方式，一样可以用到`System.loadLibrary`上去，让系统以为是系统自身在调用`System.loadLibrary`
 
-In order to bypass the classloader-namespace limitation of Android N, load any so library in the system /system/lib to the maps, and then go to dlsym by way of fake dlopen.
+从而绕过Android N的classloader-namespace限制，将系统/system/lib中任意so库加载到maps中，然后再通过fake dlopen的方式去dlsym。
+
+#### Android例子
+
+Android相关测试App例子在：[Android Sample](https://github.com/hack0z/byOpen/tree/master/src/android)
+
+除了Native版本dlopen接口，byOpen额外提供了java版本的[System.loadLibrary](https://github.com/hack0z/byOpen/blob/master/src/android/lib/src/main/java/dyopen/lib/SystemLoader.java)接口在java层直接绕过系统库加载。
+
+关键代码如下：
+
+```java
+static public boolean loadLibrary(String libraryName) {
+    Method forName = Class.class.getDeclaredMethod("forName", String.class);
+    Method getDeclaredMethod = Class.class.getDeclaredMethod("getDeclaredMethod", String.class, Class[].class);
+    Class<?> systemClass = (Class<?>) forName.invoke(null, "java.lang.System");
+    Method loadLibrary = (Method) getDeclaredMethod.invoke(systemClass, "loadLibrary", new Class[]{String.class});
+    loadLibrary.invoke(systemClass, libraryName);
+}
+```
 
 ### iOS
 
-Although ios can directly use dlopen, there will be risks in the audit. You can bypass the audit detection by implementing dlopen/dlsym yourself (not yet implemented, I will add support later)
+虽然ios可以直接使用dlopen，但是审核上会有风险，苹果有可能会对提交AppStore的app扫描相关dlopen/dlsym等调用，来判断是否存在一些敏感的私有调用。
 
-## Interface
+为了在通过调用一些私有接口的时候避免被苹果检测到，byOpen也通过自己实现dlopen/dlsym直接从已经加载进来的images列表里面直接查找对应symbol地址来调用。
 
-Related static libraries and interfaces are at: [Native Dlfunctions](https://github.com/hack0z/byOpen/blob/master/src/native/byopen.h)
+当然，为了更加安全，相关调用的库符号硬编码字符串等，用户可以自行做层变换加密，不要直接编译进app。
 
-## compile
+## 接口用法
 
-Compilation needs to be installed first: [xmake](https://github.com/xmake-io/xmake)
+相关静态库和接口在：[Native Dlfunctions](https://github.com/hack0z/byOpen/blob/master/src/native/byopen.h)
+
+相关使用方式跟原生dlopen完全相同：
+
+```c
+typedef by_char_t const* (*curl_version_t)();
+by_pointer_t handle = by_dlopen("libcurl.so", BY_RTLD_LAZY);
+if (handle)
+{
+    by_pointer_t addr = by_dlsym(handle, "curl_version");
+    if (addr)
+    {
+        curl_version_t curl_version = (curl_version_t)addr;
+        by_print("curl_version: %s", curl_version());
+    }
+    by_dlclose(handle);
+}
+```
+
+## 编译
+
+编译需要先安装：[xmake](https://github.com/xmake-io/xmake)
 
 ### Android
 
-#### Compile the library directly
+#### 直接编译库
 
 ```console
 $ xmake f -p android --ndk=~/file/android-ndk-r20b
 $ xmake
 ```
 
-#### Compile and test Apk through gradle
+#### 通过gradle编译测试Apk
 
 ```console
 $ cd src/android
 $ ./gradlew app:assembleDebug
 ```
 
-#### Directly compile apk through xmake
+#### 通过xmake直接编译apk
 
 ```console
 $ xmake apk_build
 ```
 
-#### Install and test apk directly via xmake
+#### 通过xmake直接安装测试apk
 
 ```console
 $ xmake apk_test
+```
+
+### iOS
+
+#### 直接编译库
+
+```console
+$ xmake f -p iphoneos -a [armv7|arm64]
+$ xmake
+```
+
+### MacOS
+
+我们也可以在macOS下编译测试，也是支持的：
+
+```console
+$ xmake
+$ xmake run
 ```
