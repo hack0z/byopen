@@ -19,7 +19,7 @@ Android 7以上dlopen, System.load都是被限制调用的，虽然目前网上�
 
 而byOpen不仅支持fake dlopen方式从maps加载，还可以将还没加载到maps的so库绕过系统限制强行加载进来使用，实现更加通用化得dlopen。
 
-目前的实现方式理论上还是比较通用的，至少我这Android 10上测试ok，但还完整详细测试过，是否使用请自行评估。
+注：目前的实现方式理论上还是比较通用的，至少我这Android 10上测试ok，但还完整详细测试过，是否使用请自行评估。
 
 #### 相关原理
 
@@ -46,6 +46,14 @@ byOpen参考了里面的实现，重新实现了一遍，并且做了一些小�
 #### Android例子
 
 Android相关测试App例子在：[Android Sample](https://github.com/hack0z/byOpen/tree/master/src/android)
+
+注：目前自带的App测试例子里面的系统库我写死了，有些系统版本上有可能不存在，请先改成用户自己的库和符号名，再编译测试
+
+```java
+public class MainActivity extends AppCompatActivity {
+    private static final String SYSTEM_LIBRARY = "curl";
+    private static final String SYMBOL_NAME = "curl_version";
+```
 
 除了Native版本dlopen接口，byOpen额外提供了java版本的[System.loadLibrary](https://github.com/hack0z/byOpen/blob/master/src/android/lib/src/main/java/dyopen/lib/SystemLoader.java)接口在java层直接绕过系统库加载。
 
