@@ -69,6 +69,8 @@ static public boolean loadLibrary(String libraryName) {
 }
 ```
 
+而native版本的[dlopen_android.c]((https://github.com/hack0z/byOpen/blob/master/src/native/byopen_android.c)实现中，我将这段绕过的系统加载的方式，通过jni重新实现了一遍，然后和fake dlopen无缝结合到了一起。
+
 ### iOS
 
 虽然ios可以直接使用dlopen，但是审核上会有风险，苹果有可能会对提交AppStore的app扫描相关dlopen/dlsym等调用，来判断是否存在一些敏感的私有调用。
@@ -79,7 +81,7 @@ static public boolean loadLibrary(String libraryName) {
 
 ## 接口用法
 
-相关静态库和接口在：[Native Dlfunctions](https://github.com/hack0z/byOpen/blob/master/src/native/byopen.h)
+相关静态库和接口在：[dlopen.h](https://github.com/hack0z/byOpen/blob/master/src/native/byopen.h)
 
 相关使用方式跟原生dlopen完全相同：
 
