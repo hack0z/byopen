@@ -29,13 +29,22 @@
  */
 by_int_t main(by_int_t argc, by_char_t** argv)
 {
-    by_pointer_t handle = by_dlopen(argv[1], BY_RTLD_LAZY);
+    // only for macosx, iphoneos
+    by_char_t const* libname = "/usr/lib/libz.1.dylib";
+    by_char_t const* libfunc = "_zlibVersion";
+    by_pointer_t handle = by_dlopen(libname, BY_RTLD_LAZY);
     if (handle)
     {
-        by_pointer_t addr = by_dlsym(handle, argv[2]);
+        by_pointer_t addr = by_dlsym(handle, libfunc);
         if (addr)
         {
-            by_trace("dlopen(%s): %s -> %p", argv[1], argv[2], addr);
+            // found
+            by_print("dlopen(%s): %s -> %p", libname, libfunc, addr);
+
+            // call function
+            typedef by_char_t const* (*zlibVersion_t)();
+            zlibVersion_t zlibVersion = (zlibVersion_t)addr;
+            by_print("zlibVersion: %s", zlibVersion());
         }
         by_dlclose(handle);
     }

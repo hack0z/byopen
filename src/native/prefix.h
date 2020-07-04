@@ -34,9 +34,11 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#ifdef __ANDROID__
+#if defined(__ANDROID__)
 #   include <jni.h>
 #   include <android/log.h>
+#elif defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+#   include <asl.h>
 #endif
 
 /* //////////////////////////////////////////////////////////////////////////////////////
@@ -58,6 +60,9 @@ extern "C" {
 #else
 #   define by_null                              ((by_pointer_t)0)
 #endif
+
+// print
+#define by_print(fmt, arg ...)                  by_printf(fmt "\n", ## arg)
 
 // trace
 #ifdef BY_DEBUG
@@ -105,10 +110,84 @@ extern "C" {
 #endif
 
 // printf 
-#ifdef __ANDROID__
+#if defined(__ANDROID__)
 #   define by_printf(fmt, arg ...)  __android_log_print(ANDROID_LOG_INFO, "byOpen", fmt, ## arg)
+#elif defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+#   define by_printf(fmt, arg ...)  asl_log(by_null, by_null, ASL_LEVEL_WARNING, "[byOpen]: " fmt, ## arg);
 #else
 #   define by_printf(fmt, arg ...)  printf(fmt, ## arg)
+#endif
+
+/* arch
+ *
+ * gcc builtin macros for gcc -dM -E - < /dev/null
+ *
+ * .e.g gcc -m64 -dM -E - < /dev/null | grep 64
+ * .e.g gcc -m32 -dM -E - < /dev/null | grep 86
+ * .e.g gcc -march=armv6 -dM -E - < /dev/null | grep ARM
+ */
+#if defined(__i386) \
+    || defined(__i686) \
+    || defined(__i386__) \
+    || defined(__i686__) \
+    || defined(_M_IX86)
+#   define BY_ARCH_x86
+#elif defined(__x86_64) \
+    || defined(__amd64__) \
+    || defined(__amd64) \
+    || defined(_M_IA64) \
+    || defined(_M_X64)
+#   define BY_ARCH_x64
+#elif defined(__arm__) || defined(__arm64) || defined(__arm64__) || (defined(__aarch64__) && __aarch64__)
+#   define BY_ARCH_ARM
+#   if defined(__ARM64_ARCH_8__)
+#       define BY_ARCH_ARM64
+#       define BY_ARCH_ARM_v8
+#   elif defined(__ARM_ARCH_7A__)
+#       define BY_ARCH_ARM_v7A
+#   elif defined(__ARM_ARCH_7__)
+#       define BY_ARCH_ARM_v7
+#   elif defined(__ARM_ARCH_6__)
+#       define BY_ARCH_ARM_v6
+#   elif defined(__ARM_ARCH_5TE__)
+#       define BY_ARCH_ARM_v5te
+#   elif defined(__ARM_ARCH_5__)
+#       define BY_ARCH_ARM_v5
+#   elif defined(__ARM_ARCH_4T__)
+#       define BY_ARCH_ARM_v4t
+#   elif defined(__ARM_ARCH)
+#       define BY_ARCH_ARM_VERSION          __ARM_ARCH
+#       if __ARM_ARCH >= 8
+#           define BY_ARCH_ARM_v8
+#           if defined(__arm64) || defined(__arm64__)
+#               define BY_ARCH_ARM64
+#           elif (defined(__aarch64__) && __aarch64__)
+#               define BY_ARCH_ARM64
+#           endif
+#       elif __ARM_ARCH >= 7
+#           define BY_ARCH_ARM_v7
+#       elif __ARM_ARCH >= 6
+#           define BY_ARCH_ARM_v6
+#       else
+#           define BY_ARCH_ARM_v5
+#       endif
+#   elif defined(__aarch64__) && __aarch64__
+#       define BY_ARCH_ARM_v8
+#       define BY_ARCH_ARM64
+#   else 
+#       error unknown arm arch version
+#   endif
+#   if !defined(BY_ARCH_ARM64) && (defined(__arm64) || defined(__arm64__) || (defined(__aarch64__) && __aarch64__))
+#       define BY_ARCH_ARM64
+#   endif
+#   if defined(__thumb__)
+#       define BY_ARCH_ARM_THUMB
+#   endif
+#   if defined(__ARM_NEON__)
+#       define BY_ARCH_ARM_NEON
+#   endif 
+#else
+#   error unknown arch
 #endif
 
 /* //////////////////////////////////////////////////////////////////////////////////////
