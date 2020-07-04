@@ -38,8 +38,10 @@ Android 7以上dlopen, System.load都是被限制调用的，虽然目前网上�
 
 byOpen参考了里面的实现，重新实现了一遍，并且做了一些小改进：
 
+* 不在/proc/self/maps中的系统库，也能绕过限制强行加载进来使用
 * 除了从.dynsym中检索符号，还支持从.symtab中检索符号（参考：Enhanced_dlfunctions，顺带修复了里面的一些bug）
 * 整个dlopen过程只有一次malloc分配（省去整个符号表的内存分配和copy）
+* 兼容原始dlopen，如果是低版本android系统，没有限制，还是会优先切到原生dlopen上去直接调用
 
 #### Android例子
 
