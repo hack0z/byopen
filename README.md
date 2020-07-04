@@ -5,7 +5,7 @@
 
 ## 简介
 
-byOpen是一个绕过Android/iOS限制的dlopen库。
+byOpen是一个绕过移动端系统限制的dlopen库。
 
 ## 支持特性
 
