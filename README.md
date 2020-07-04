@@ -29,6 +29,18 @@ Android 7以上dlopen, System.load都是被限制调用的，虽然目前网上�
 
 从而绕过Android N的classloader-namespace限制，将系统/system/lib中任意so库加载到maps中，然后再通过fake dlopen的方式去dlsym。
 
+#### 增强版fake dlopen
+
+关于fake dlopen的方式实现，网上已有很多实现，比如：
+
+* [Nougat_dlfunctions](https://github.com/avs333/Nougat_dlfunctions)
+* [Enhanced_dlfunctions](https://github.com/turing-technician/Enhanced_dlfunctions)
+
+byOpen参考了里面的实现，重新实现了一遍，并且做了一些小改进：
+
+* 除了从.dynsym中检索符号，还支持从.symtab中检索符号（参考：Enhanced_dlfunctions，顺带修复了里面的一些bug）
+* 整个dlopen过程只有一次malloc分配（省去整个符号表的内存分配和copy）
+
 #### Android例子
 
 Android相关测试App例子在：[Android Sample](https://github.com/hack0z/byOpen/tree/master/src/android)
