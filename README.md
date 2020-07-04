@@ -69,7 +69,7 @@ static public boolean loadLibrary(String libraryName) {
 }
 ```
 
-而native版本的[dlopen_android.c]((https://github.com/hack0z/byOpen/blob/master/src/native/byopen_android.c)实现中，我将这段绕过的系统加载的方式，通过jni重新实现了一遍，然后和fake dlopen无缝结合到了一起。
+而native版本的[dlopen_android.c](https://github.com/hack0z/byOpen/blob/master/src/native/byopen_android.c)实现中，我将这段绕过的系统加载的方式，通过jni重新实现了一遍，然后和fake dlopen无缝结合到了一起。
 
 ### iOS
 
