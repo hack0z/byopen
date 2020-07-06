@@ -8,6 +8,10 @@ elseif is_mode("minsizerel") then
     add_cxflags("-flto")
     add_shflags("-flto")
     add_ldflags("-flto")
+    if is_plat("android") then
+        add_shflags("-fuse-ld=lld")
+        add_ldflags("-fuse-ld=lld")
+    end
 end
 
 task("apk_build")
