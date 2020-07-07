@@ -599,7 +599,8 @@ by_pointer_t by_dlopen(by_char_t const* filename, by_int_t flag)
     by_assert_and_check_return_val(filename, by_null);
 
     // attempt to use original dlopen to load it fist
-    by_pointer_t handle = dlopen(filename, flag == BY_RTLD_LAZY? RTLD_LAZY : RTLD_NOW);
+    // TODO we disable the original dlopen now, load /data/xxx.so may be returned an invalid address
+    by_pointer_t handle = by_null;//dlopen(filename, flag == BY_RTLD_LAZY? RTLD_LAZY : RTLD_NOW);
 
     // uses the fake dlopen to load it from maps directly
     if (!handle) handle = (by_pointer_t)by_fake_dlopen(filename, flag);
