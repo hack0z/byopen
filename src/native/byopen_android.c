@@ -473,7 +473,7 @@ static jobject by_jni_Class_getDeclaredMethod(JNIEnv* env)
     loadLibrary.invoke(systemClass, libraryName);
  * @endcode
  */
-static by_bool_t by_jni_System_load_or_loadLibrary(JNIEnv* env, by_char_t const* loadName, by_char_t const* libraryPath)
+static by_bool_t by_jni_System_load_or_loadLibrary_from_sys(JNIEnv* env, by_char_t const* loadName, by_char_t const* libraryPath)
 {
     // check
     by_assert_and_check_return_val(env && loadName && libraryPath, by_false);
@@ -549,17 +549,56 @@ static by_bool_t by_jni_System_load_or_loadLibrary(JNIEnv* env, by_char_t const*
     (*env)->PopLocalFrame(env, by_null);
     return !check;
 }
+static by_bool_t by_jni_System_load_or_loadLibrary_from_app(JNIEnv* env, by_char_t const* loadName, by_char_t const* libraryPath)
+{
+    // check
+    by_assert_and_check_return_val(env && loadName && libraryPath, by_false);
+
+    // push
+    if ((*env)->PushLocalFrame(env, 10) < 0) return by_false;
+
+    // do load
+    jboolean check = by_false;
+    do
+    {
+        // get system class
+        jclass system_clazz = (*env)->FindClass(env, "java/lang/System");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && system_clazz);
+
+        // get load/loadLibrary id
+        jmethodID load_id = (*env)->GetStaticMethodID(env, system_clazz, loadName, "(Ljava/lang/String;)V");
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && load_id);
+
+        // get library path
+        jstring libraryPath_jstr = (*env)->NewStringUTF(env, libraryPath);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && libraryPath_jstr);
+
+        // load library
+        (*env)->CallStaticVoidMethod(env, system_clazz, load_id, libraryPath_jstr);
+        by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)));
+
+    } while (0);
+
+    // exception? clear it
+    if (check) by_jni_clearException(env, by_true);
+    (*env)->PopLocalFrame(env, by_null);
+    return !check;
+}
 
 // System.load(libraryPath)
 static by_bool_t by_jni_System_load(JNIEnv* env, by_char_t const* libraryPath)
 {
-    return by_jni_System_load_or_loadLibrary(env, "load", libraryPath);
+    by_trace("load: %s", libraryPath);
+    return by_jni_System_load_or_loadLibrary_from_app(env, "load", libraryPath) || 
+           by_jni_System_load_or_loadLibrary_from_sys(env, "load", libraryPath);
 }
 
 // System.loadLibrary(libraryName)
 static by_bool_t by_jni_System_loadLibrary(JNIEnv* env, by_char_t const* libraryName)
 {
-    return by_jni_System_load_or_loadLibrary(env, "loadLibrary", libraryName);
+    by_trace("loadLibrary: %s", libraryName);
+    return by_jni_System_load_or_loadLibrary_from_app(env, "loadLibrary", libraryName) ||
+           by_jni_System_load_or_loadLibrary_from_sys(env, "loadLibrary", libraryName);
 }
 
 /* get the current jni environment
@@ -610,7 +649,7 @@ by_pointer_t by_dlopen(by_char_t const* filename, by_int_t flag)
     {
         // load it via system call
         JNIEnv* env = by_jni_getenv();
-        if (env && ((strstr(filename, "/") && by_jni_System_load(env, filename)) || by_jni_System_loadLibrary(env, filename)))
+        if (env && (((strstr(filename, "/") || strstr(filename, ".so")) && by_jni_System_load(env, filename)) || by_jni_System_loadLibrary(env, filename)))
             handle = (by_pointer_t)by_fake_dlopen(filename, flag);
     }
     return handle;
