@@ -103,7 +103,7 @@ static by_pointer_t by_fake_find_maps(by_char_t const* filename, by_char_t* real
                 int       pos = 0;
                 uintptr_t start = 0;
                 uintptr_t offset = 0;
-                if (2 == sscanf(line, "%"SCNxPTR"-%*"SCNxPTR" %*4s %"SCNxPTR" %*x:%*x %*d%n", &start, &offset, &pos))
+                if (2 == sscanf(line, "%"SCNxPTR"-%*"SCNxPTR" %*4s %"SCNxPTR" %*x:%*x %*d%n", &start, &offset, &pos) && !offset)
                 {
                     baseaddr = (by_pointer_t)start;
                     if (filename[0] == '/')
