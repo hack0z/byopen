@@ -46,7 +46,7 @@
  */
 
 // the dynamic library context type for fake dlopen
-typedef struct _by_fake_dlctx_t 
+typedef struct _by_fake_dlctx_t
 {
     // magic, mark handle for fake dlopen
     by_uint32_t     magic;
@@ -96,7 +96,7 @@ static by_pointer_t by_fake_find_maps(by_char_t const* filename, by_char_t* real
     FILE* fp = fopen("/proc/self/maps", "r");
     if (fp)
     {
-        while (fgets(line, sizeof(line), fp)) 
+        while (fgets(line, sizeof(line), fp))
         {
             if (strstr(line, filename))
             {
@@ -172,7 +172,7 @@ static by_pointer_t by_fake_dlsym(by_fake_dlctx_ref_t dlctx, by_char_t const* sy
     // check
     by_assert_and_check_return_val(dlctx && dlctx->filedata && dlctx->filesize && symbol, by_null);
 
-    // find the symbol address from the .dynsym first 
+    // find the symbol address from the .dynsym first
     by_int_t         i = 0;
     by_pointer_t     end = dlctx->filedata + dlctx->filesize;
     by_char_t const* dynstr = (by_char_t const*)dlctx->dynstr;
@@ -180,10 +180,11 @@ static by_pointer_t by_fake_dlsym(by_fake_dlctx_ref_t dlctx, by_char_t const* sy
     by_int_t         dynsym_num = dlctx->dynsym_num;
     if (dynsym && dynstr)
     {
-        for (i = 0; i < dynsym_num; i++, dynsym++) 
+        for (i = 0; i < dynsym_num; i++, dynsym++)
         {
             by_char_t const* name = dynstr + dynsym->st_name;
-            if ((by_pointer_t)name < end && strcmp(name, symbol) == 0) 
+            if ((by_pointer_t)name < end && strcmp(name, symbol) == 0 &&
+                    dlctx->baseaddr + dynsym->st_value > dlctx->biasaddr)
             {
                 /* NB: sym->st_value is an offset into the section for relocatables,
                  * but a VMA for shared libs or exe files, so we have to subtract the bias
@@ -199,15 +200,16 @@ static by_pointer_t by_fake_dlsym(by_fake_dlctx_ref_t dlctx, by_char_t const* sy
     by_char_t const* strtab = (by_char_t const*)dlctx->strtab;
     ElfW(Sym)*       symtab = (ElfW(Sym)*)dlctx->symtab;
     by_int_t         symtab_num = dlctx->symtab_num;
-    if (symtab && strtab) 
+    if (symtab && strtab)
     {
-        for (i = 0; i < symtab_num; i++, symtab++) 
+        for (i = 0; i < symtab_num; i++, symtab++)
         {
             by_char_t const* name = strtab + symtab->st_name;
-            if ((by_pointer_t)name < end && strcmp(name, symbol) == 0) 
+            if ((by_pointer_t)name < end && strcmp(name, symbol) == 0 &&
+                    dlctx->baseaddr + symtab->st_value > dlctx->biasaddr)
             {
-                by_pointer_t symboladdr = (by_pointer_t)(dlctx->baseaddr + dynsym->st_value - dlctx->biasaddr);
-                by_trace("dlsym(%s): found at .dynsym/%p = %p + %x - %p", symbol, symboladdr, dlctx->baseaddr, (by_int_t)dynsym->st_value, dlctx->biasaddr);
+                by_pointer_t symboladdr = (by_pointer_t)(dlctx->baseaddr + symtab->st_value - dlctx->biasaddr);
+                by_trace("dlsym(%s): found at .symtab/%p = %p + %x - %p", symbol, symboladdr, dlctx->baseaddr, (by_int_t)symtab->st_value, dlctx->biasaddr);
                 return symboladdr;
             }
         }
@@ -321,7 +323,7 @@ static by_fake_dlctx_ref_t by_fake_dlopen(by_char_t const* filename, by_int_t fl
             {
             case SHT_DYNSYM:
                 // get .dynsym
-                if (dlctx->dynsym) 
+                if (dlctx->dynsym)
                 {
                     by_trace("%s: duplicate .dynsym sections", realpath);
                     broken = by_true;
@@ -333,7 +335,7 @@ static by_fake_dlctx_ref_t by_fake_dlopen(by_char_t const* filename, by_int_t fl
                 break;
             case SHT_SYMTAB:
                 // get .symtab
-                if (dlctx->symtab) 
+                if (dlctx->symtab)
                 {
                     by_trace("%s: duplicate .symtab sections", realpath);
                     broken = by_true;
@@ -345,7 +347,7 @@ static by_fake_dlctx_ref_t by_fake_dlopen(by_char_t const* filename, by_int_t fl
                 break;
             case SHT_STRTAB:
                 // get .dynstr
-                if (!strcmp(shstr + sh->sh_name, ".dynstr")) 
+                if (!strcmp(shstr + sh->sh_name, ".dynstr"))
                 {
                     // .dynstr is guaranteed to be the first STRTAB
                     if (dlctx->dynstr) break;
@@ -359,7 +361,7 @@ static by_fake_dlctx_ref_t by_fake_dlopen(by_char_t const* filename, by_int_t fl
                     dlctx->strtab = dlctx->filedata + sh->sh_offset;
                     by_trace(".strtab: %p", dlctx->strtab);
                 }
-                break;  
+                break;
             default:
                 break;
             }
@@ -481,7 +483,7 @@ static by_bool_t by_jni_System_load_or_loadLibrary_from_sys(JNIEnv* env, by_char
     // push
     if ((*env)->PushLocalFrame(env, 20) < 0) return by_false;
 
-    // do load 
+    // do load
     jboolean check = by_false;
     do
     {
@@ -528,14 +530,14 @@ static by_bool_t by_jni_System_load_or_loadLibrary_from_sys(JNIEnv* env, by_char
         (*env)->SetObjectArrayElement(env, invoke_args, 0, load_name);
         (*env)->SetObjectArrayElement(env, invoke_args, 1, load_args);
 
-        // Method load = (Method)getDeclaredMethod.invoke(systemClass, "load", new Class[]{String.class}); 
+        // Method load = (Method)getDeclaredMethod.invoke(systemClass, "load", new Class[]{String.class});
         jobject load_method = (jobject)(*env)->CallObjectMethod(env, getDeclaredMethod_method, invoke_id, system_clazz, invoke_args);
         by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && load_method);
 
         // load.invoke(systemClass, libraryPath)
         jstring libraryPath_jstr = (*env)->NewStringUTF(env, libraryPath);
         by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && libraryPath_jstr);
-        
+
         invoke_args = (*env)->NewObjectArray(env, 1, object_clazz, libraryPath_jstr);
         by_assert_and_check_break(!(check = (*env)->ExceptionCheck(env)) && invoke_args);
 
@@ -589,7 +591,7 @@ static by_bool_t by_jni_System_load_or_loadLibrary_from_app(JNIEnv* env, by_char
 static by_bool_t by_jni_System_load(JNIEnv* env, by_char_t const* libraryPath)
 {
     by_trace("load: %s", libraryPath);
-    return by_jni_System_load_or_loadLibrary_from_app(env, "load", libraryPath) || 
+    return by_jni_System_load_or_loadLibrary_from_app(env, "load", libraryPath) ||
            by_jni_System_load_or_loadLibrary_from_sys(env, "load", libraryPath);
 }
 
@@ -645,7 +647,7 @@ by_pointer_t by_dlopen(by_char_t const* filename, by_int_t flag)
     if (!handle) handle = (by_pointer_t)by_fake_dlopen(filename, flag);
 
     // uses the fake dlopen to load it from maps directly
-    if (!handle) 
+    if (!handle)
     {
         // load it via system call
         JNIEnv* env = by_jni_getenv();
@@ -672,3 +674,5 @@ by_int_t by_dlclose(by_pointer_t handle)
     // do dlclose
     return (dlctx->magic == BY_FAKE_DLCTX_MAGIC)? by_fake_dlclose(dlctx) : dlclose(handle);
 }
+
+
