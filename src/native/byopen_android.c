@@ -92,7 +92,7 @@ static by_pointer_t by_fake_find_maps(by_char_t const* filename, by_char_t* real
 
     // find it
     by_char_t    line[512];
-    by_char_t    page_attr[512];
+    by_char_t    page_attr[10];
     by_pointer_t baseaddr = by_null;
     FILE* fp = fopen("/proc/self/maps", "r");
     if (fp)
