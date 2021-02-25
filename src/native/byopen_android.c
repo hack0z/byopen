@@ -92,8 +92,7 @@ static by_pointer_t by_fake_find_maps(by_char_t const* filename, by_char_t* real
 
     // find it
     by_char_t    line[512];
-    by_char_t page_attr[512];
-    page_attr[0] = 0;
+    by_char_t    page_attr[512];
     by_pointer_t baseaddr = by_null;
     FILE* fp = fopen("/proc/self/maps", "r");
     if (fp)
@@ -105,10 +104,9 @@ static by_pointer_t by_fake_find_maps(by_char_t const* filename, by_char_t* real
                 int       pos = 0;
                 uintptr_t start = 0;
                 uintptr_t offset = 0;
-                //不知道为什么在我的一台安卓7上面 不能使用 %c%cx%c 过滤，所以用了这个投机取巧的办法
                 if (3 == sscanf(line, "%"SCNxPTR"-%*"SCNxPTR" %4s %"SCNxPTR" %*x:%*x %*d%n", &start,page_attr, &offset, &pos) && !offset)
                 {
-                    if (page_attr[2] != 'x')continue;
+                    if (page_attr[2] != 'x') continue;
                     baseaddr = (by_pointer_t)start;
                     if (filename[0] == '/')
                         strlcpy(realpath, filename, realmaxn);
