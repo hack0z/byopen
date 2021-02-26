@@ -104,10 +104,17 @@ static by_pointer_t by_fake_find_maps(by_char_t const* filename, by_char_t* real
                 int       pos = 0;
                 uintptr_t start = 0;
                 uintptr_t offset = 0;
-                if (3 == sscanf(line, "%"SCNxPTR"-%*"SCNxPTR" %4s %"SCNxPTR" %*x:%*x %*d%n", &start, page_attr, &offset, &pos) && !offset)
+                // 7372a68000-7372bc1000 --xp 000fe000 fd:06 39690571                       /system/lib64/libandroid_runtime.so
+                if (3 == sscanf(line, "%"SCNxPTR"-%*"SCNxPTR" %4s %"SCNxPTR" %*x:%*x %*d%n", &start, page_attr, &offset, &pos))
                 {
+                    // we need only get map buffer with executable attribute
                     if (page_attr[2] != 'x') continue;
-                    baseaddr = (by_pointer_t)start;
+
+                    // get base address = start - offset
+                    by_assert_and_check_continue(offset < start);
+                    baseaddr = (by_pointer_t)start - offset;
+
+                    // get real path
                     if (filename[0] == '/')
                         strlcpy(realpath, filename, realmaxn);
                     else if (pos < sizeof(line))
