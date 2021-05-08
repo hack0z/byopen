@@ -107,12 +107,13 @@ static by_pointer_t by_fake_find_maps(by_char_t const* filename, by_char_t* real
                 // 7372a68000-7372bc1000 --xp 000fe000 fd:06 39690571                       /system/lib64/libandroid_runtime.so
                 if (3 == sscanf(line, "%"SCNxPTR"-%*"SCNxPTR" %4s %"SCNxPTR" %*x:%*x %*d%n", &start, page_attr, &offset, &pos))
                 {
-                    // we need only get map buffer with executable attribute
-                    if (page_attr[2] != 'x') continue;
+                    // check permission and offset
+                    if (page_attr[0] != 'r') continue;
+                    if (page_attr[3] != 'p') continue;
+                    if (0 != offset) continue;
 
-                    // get base address = start - offset
-                    by_assert_and_check_continue(offset < start);
-                    baseaddr = (by_pointer_t)start - offset;
+                    // get base address
+                    baseaddr = (by_pointer_t)start;
 
                     // get real path
                     if (filename[0] == '/')
@@ -683,5 +684,7 @@ by_int_t by_dlclose(by_pointer_t handle)
     // do dlclose
     return (dlctx->magic == BY_FAKE_DLCTX_MAGIC)? by_fake_dlclose(dlctx) : dlclose(handle);
 }
+
+
 
 
