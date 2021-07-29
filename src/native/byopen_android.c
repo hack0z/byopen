@@ -79,6 +79,8 @@ typedef struct _by_fake_dlctx_t
 
 // the jni environment on tls
 __thread JNIEnv* g_tls_jnienv = by_null;
+static JavaVM*   g_jvm = by_null;
+static by_int_t  g_jversion = JNI_VERSION_1_4;
 
 /* //////////////////////////////////////////////////////////////////////////////////////
  * private implementation
@@ -623,6 +625,12 @@ static by_bool_t by_jni_System_loadLibrary(JNIEnv* env, by_char_t const* library
  */
 static JNIEnv* by_jni_getenv()
 {
+    if (g_jvm)
+    {
+        JNIEnv* env = by_null;
+        if (JNI_OK == (*g_jvm)->GetEnv(g_jvm, (by_pointer_t*)&env, g_jversion))
+            return env;
+    }
     if (!g_tls_jnienv)
     {
         by_fake_dlctx_ref_t dlctx = by_fake_dlopen("libandroid_runtime.so", BY_RTLD_NOW);
@@ -639,6 +647,12 @@ static JNIEnv* by_jni_getenv()
         by_trace("get jnienv: %p", g_tls_jnienv);
     }
     return g_tls_jnienv;
+}
+
+by_void_t by_jni_javavm_set(JavaVM* jvm, by_int_t jversion)
+{
+    g_jvm = jvm;
+    g_jversion = jversion;
 }
 
 /* //////////////////////////////////////////////////////////////////////////////////////
