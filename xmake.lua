@@ -13,6 +13,9 @@ elseif is_mode("minsizerel") then
         add_ldflags("-fuse-ld=lld")
     end
 end
+if is_plat("android") then
+    add_cxflags("-fPIC")
+end
 
 task("apk_build")
     set_menu {usage = "xmake apk_build [options]", description = "build android apk.", options = {}}
