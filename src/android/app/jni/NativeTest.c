@@ -25,8 +25,19 @@
 #include "byopen.h"
 
 /* //////////////////////////////////////////////////////////////////////////////////////
+ * declaration
+ */
+by_void_t by_jni_javavm_set(JavaVM* jvm, by_int_t jversion);
+
+/* //////////////////////////////////////////////////////////////////////////////////////
  * interfaces
  */
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* jvm, by_pointer_t reserved)
+{
+    by_jni_javavm_set(jvm, JNI_VERSION_1_4);
+    return JNI_VERSION_1_4;
+}
+
 JNIEXPORT jboolean Java_byopen_sample_NativeTest_loadLibrary(JNIEnv* env, jclass jthis, jstring libraryName, jstring symbolName)
 {
     by_bool_t ok = by_false;

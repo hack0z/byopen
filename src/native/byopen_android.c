@@ -83,14 +83,22 @@ static JavaVM*   g_jvm = by_null;
 static by_int_t  g_jversion = JNI_VERSION_1_4;
 
 /* //////////////////////////////////////////////////////////////////////////////////////
+ * declaration
+ */
+extern __attribute((weak)) by_int_t dl_iterate_phdr(by_int_t (*)(struct dl_phdr_info*, size_t, by_pointer_t), by_pointer_t);
+
+/* //////////////////////////////////////////////////////////////////////////////////////
  * private implementation
  */
 
 // find the base address and real path from the maps
-static by_pointer_t by_fake_find_maps(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
+static by_pointer_t by_fake_find_baseaddr_from_maps(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
 {
     // check
     by_assert_and_check_return_val(filename && realpath && realmaxn, by_null);
+
+    // trace
+    by_trace("find baseaddr of %s from maps", filename);
 
     // find it
     by_char_t    line[512];
@@ -138,6 +146,65 @@ static by_pointer_t by_fake_find_maps(by_char_t const* filename, by_char_t* real
         fclose(fp);
     }
     return baseaddr;
+}
+
+// the callback of dl_iterate_phdr()
+static by_int_t by_fake_find_baseaddr_from_linker_cb(struct dl_phdr_info* info, size_t size, by_pointer_t udata)
+{
+    // check
+    by_cpointer_t* args = (by_cpointer_t*)udata;
+    by_check_return_val(args, 1);
+    by_check_return_val(info && info->dlpi_addr && info->dlpi_name && info->dlpi_name[0] != '\0', 0);
+
+    // find library filename
+    by_char_t const* filename  = (by_char_t const*)args[0];
+    by_pointer_t*    pbaseaddr = (by_pointer_t*)&args[3];
+    by_char_t*       realpath  = (by_char_t*)args[1];
+    by_size_t        realmaxn  = (by_size_t)args[2];
+    if (filename && strstr(info->dlpi_name, filename))
+    {
+        // save base address
+        *pbaseaddr = (by_pointer_t)info->dlpi_addr;
+
+        // get real path
+        if (filename[0] == '/')
+            strlcpy(realpath, filename, realmaxn);
+        else if (info->dlpi_name[0] == '/')
+            strlcpy(realpath, info->dlpi_name, realmaxn);
+        // TODO
+        else realpath[0] = '\0';
+
+        // found, stop it
+        return 1;
+    }
+    return 0;
+}
+
+// find the base address and real path from the maps
+static by_pointer_t by_fake_find_baseaddr_from_linker(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
+{
+    // check
+    by_assert_and_check_return_val(dl_iterate_phdr && filename && realpath && realmaxn, by_null);
+
+    // trace
+    by_trace("find baseaddr of %s from linker", filename);
+
+    // find baseaddr
+    by_cpointer_t args[4];
+    args[0] = (by_cpointer_t)filename;
+    args[1] = (by_cpointer_t)realpath;
+    args[2] = (by_cpointer_t)realmaxn;
+    args[3] = by_null;
+    dl_iterate_phdr(by_fake_find_baseaddr_from_linker_cb, args);
+    return args[3];
+}
+
+// find the base address and real path
+static by_pointer_t by_fake_find_baseaddr(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
+{
+    if (dl_iterate_phdr)
+        return by_fake_find_baseaddr_from_linker(filename, realpath, realpath);
+    return by_fake_find_baseaddr_from_maps(filename, realpath, realmaxn);
 }
 
 // open map file
@@ -269,8 +336,8 @@ static by_fake_dlctx_ref_t by_fake_dlopen(by_char_t const* filename, by_int_t fl
     by_fake_dlctx_ref_t dlctx = by_null;
     do
     {
-        // attempt to find the base address and real path from the maps first
-        by_pointer_t baseaddr = by_fake_find_maps(filename, realpath, sizeof(realpath));
+        // attempt to find the base address and real path
+        by_pointer_t baseaddr = by_fake_find_baseaddr(filename, realpath, sizeof(realpath));
         by_check_break(baseaddr);
 
         // init context
