@@ -33,6 +33,7 @@
 #include <inttypes.h>
 #include <elf.h>
 #include <link.h>
+#include <sys/system_properties.h>
 
 /* //////////////////////////////////////////////////////////////////////////////////////
  * macros
@@ -40,6 +41,19 @@
 
 // the fake dlopen magic
 #define BY_FAKE_DLCTX_MAGIC      (0xfaddfadd)
+
+/* g_dl_mutex in linker
+ *
+ * @see http://androidxref.com/5.0.0_r2/xref/bionic/linker/dlfcn.cpp#32
+ */
+#define BY_LINKER_MUTEX         "__dl__ZL10g_dl_mutex"
+
+// the linker name
+#ifndef __LP64__
+#   define BY_LINKER_NAME       "linker"
+#else
+#   define BY_LINKER_NAME       "linker64"
+#endif
 
 /* //////////////////////////////////////////////////////////////////////////////////////
  * types
@@ -78,9 +92,10 @@ typedef struct _by_fake_dlctx_t
  */
 
 // the jni environment on tls
-__thread JNIEnv* g_tls_jnienv = by_null;
-static JavaVM*   g_jvm = by_null;
-static by_int_t  g_jversion = JNI_VERSION_1_4;
+__thread JNIEnv*        g_tls_jnienv = by_null;
+static JavaVM*          g_jvm = by_null;
+static by_int_t         g_jversion = JNI_VERSION_1_4;
+static pthread_mutex_t* g_linker_mutex = by_null;
 
 /* //////////////////////////////////////////////////////////////////////////////////////
  * declaration
@@ -88,8 +103,105 @@ static by_int_t  g_jversion = JNI_VERSION_1_4;
 extern __attribute((weak)) by_int_t dl_iterate_phdr(by_int_t (*)(struct dl_phdr_info*, size_t, by_pointer_t), by_pointer_t);
 
 /* //////////////////////////////////////////////////////////////////////////////////////
+ * declaration
+ */
+
+// weak symbol import
+by_void_t __system_property_read_callback(
+    prop_info const* info,
+    by_void_t (*callback)(by_pointer_t cookie, by_char_t const* name, by_char_t const* value, uint32_t serial),
+    by_void_t* cookie) __attribute__((weak));
+
+by_int_t __system_property_get(by_char_t const* name, by_char_t* value) __attribute__((weak));
+
+/* //////////////////////////////////////////////////////////////////////////////////////
  * private implementation
  */
+
+/* Technical note regarding reading system properties.
+ *
+ * Try to use the new __system_property_read_callback API that appeared in
+ * Android O / API level 26 when available. Otherwise use the deprecated
+ * __system_property_get function.
+ *
+ * For more technical details from an NDK maintainer, see:
+ * https://bugs.chromium.org/p/chromium/issues/detail?id=392191#c17
+ */
+
+// callback used with __system_property_read_callback.
+static by_void_t by_rt_prop_read_int(by_pointer_t cookie, by_char_t const* name, by_char_t const* value, uint32_t serial)
+{
+    *(by_int_t *)cookie = atoi(value);
+    (by_void_t)name;
+    (by_void_t)serial;
+}
+
+// read process output
+static by_int_t by_rt_process_read(by_char_t const* cmd, by_char_t* data, by_size_t maxn)
+{
+    by_int_t n = 0;
+    FILE*    p = popen(cmd, "r");
+    if (p)
+    {
+        by_char_t  buf[256] = {0};
+        by_char_t* pos = data;
+        by_char_t* end = data + maxn;
+        while (!feof(p))
+        {
+            if (fgets(buf, sizeof(buf), p))
+            {
+               by_int_t len = strlen(buf);
+               if (pos + len < end)
+               {
+                   memcpy(pos, buf, len);
+                   pos += len;
+                   n   += len;
+               }
+            }
+        }
+
+        *pos = '\0';
+        pclose(p);
+    }
+    return n;
+}
+
+// get system property integer
+static by_int_t by_rt_system_property_get_int(by_char_t const* name)
+{
+    // check
+    by_assert_and_check_return_val(name, -1);
+
+    by_int_t result = 0;
+    if (__system_property_read_callback)
+    {
+        struct prop_info const* info = __system_property_find(name);
+        if (info) __system_property_read_callback(info, &by_rt_prop_read_int, &result);
+    }
+    else if (__system_property_get)
+    {
+        by_char_t value[PROP_VALUE_MAX] = {0};
+        if (__system_property_get(name, value) >= 1)
+            result = atoi(value);
+    }
+    else
+    {
+        by_char_t cmd[256];
+        by_char_t value[PROP_VALUE_MAX];
+        snprintf(cmd, sizeof(cmd), "getprop %s", name);
+        if (by_rt_process_read(cmd, value, sizeof(value)) > 1)
+            result = atoi(value);
+    }
+    return result;
+}
+
+static by_int_t by_rt_api_level()
+{
+    static by_int_t s_api_level = -1;
+    if (s_api_level < 0)
+        s_api_level = by_rt_system_property_get_int("ro.build.version.sdk");
+    return s_api_level;
+}
 
 // find the base address and real path from the maps
 static by_pointer_t by_fake_find_baseaddr_from_maps(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
@@ -139,6 +251,9 @@ static by_pointer_t by_fake_find_baseaddr_from_maps(by_char_t const* filename, b
                         else realpath[0] = '\0';
                     }
                     else realpath[0] = '\0';
+
+                    // trace
+                    by_trace("realpath: %s, baseaddr: %p found!", realpath, baseaddr);
                 }
                 break;
             }
@@ -174,6 +289,9 @@ static by_int_t by_fake_find_baseaddr_from_linker_cb(struct dl_phdr_info* info, 
         // TODO
         else realpath[0] = '\0';
 
+        // trace
+        by_trace("realpath: %s, baseaddr: %p found!", realpath, info->dlpi_addr);
+
         // found, stop it
         return 1;
     }
@@ -195,14 +313,17 @@ static by_pointer_t by_fake_find_baseaddr_from_linker(by_char_t const* filename,
     args[1] = (by_cpointer_t)realpath;
     args[2] = (by_cpointer_t)realmaxn;
     args[3] = by_null;
+    if (g_linker_mutex) pthread_mutex_lock(g_linker_mutex);
     dl_iterate_phdr(by_fake_find_baseaddr_from_linker_cb, args);
+    if (g_linker_mutex) pthread_mutex_unlock(g_linker_mutex);
     return args[3];
 }
 
 // find the base address and real path
 static by_pointer_t by_fake_find_baseaddr(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
 {
-    if (dl_iterate_phdr)
+    by_assert_and_check_return_val(filename && realpath, by_null);
+    if (dl_iterate_phdr && 0 != strcmp(filename, BY_LINKER_NAME))
         return by_fake_find_baseaddr_from_linker(filename, realpath, realpath);
     return by_fake_find_baseaddr_from_maps(filename, realpath, realmaxn);
 }
@@ -325,7 +446,7 @@ static by_int_t by_fake_dlclose(by_fake_dlctx_ref_t dlctx)
 /* @see https://www.sunmoonblog.com/2019/06/04/fake-dlopen/
  * https://github.com/avs333/Nougat_dlfunctions
  */
-static by_fake_dlctx_ref_t by_fake_dlopen(by_char_t const* filename, by_int_t flag)
+static by_fake_dlctx_ref_t by_fake_dlopen_impl(by_char_t const* filename, by_int_t flag)
 {
     // check
     by_assert_and_check_return_val(filename, by_null);
@@ -459,6 +580,32 @@ static by_fake_dlctx_ref_t by_fake_dlopen(by_char_t const* filename, by_int_t fl
         dlctx = by_null;
     }
     return dlctx;
+}
+static by_void_t by_linker_init()
+{
+    static by_bool_t s_inited = by_false;
+    if (!s_inited)
+    {
+        // we need linker mutex only for android 5.0 and 5.1
+        by_size_t apilevel = by_rt_api_level();
+        if (apilevel == __ANDROID_API_L__ || apilevel == __ANDROID_API_L_MR1__)
+        {
+            by_fake_dlctx_ref_t linker = by_fake_dlopen_impl(BY_LINKER_NAME, BY_RTLD_NOW);
+            by_trace("init linker: %p", linker);
+            if (linker)
+            {
+                g_linker_mutex = (pthread_mutex_t*)by_fake_dlsym(linker, BY_LINKER_MUTEX);
+                by_trace("load g_dl_mutex: %p", g_linker_mutex);
+                by_fake_dlclose(linker);
+            }
+        }
+        s_inited = by_true;
+    }
+}
+static by_fake_dlctx_ref_t by_fake_dlopen(by_char_t const* filename, by_int_t flag)
+{
+    by_linker_init();
+    return by_fake_dlopen_impl(filename, flag);
 }
 static by_void_t by_jni_clearException(JNIEnv* env, by_bool_t report)
 {
