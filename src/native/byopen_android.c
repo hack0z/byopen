@@ -65,10 +65,7 @@ typedef struct _by_fake_dlctx_t
     // magic, mark handle for fake dlopen
     by_uint32_t     magic;
 
-    // the base address of the dynamic library
-    by_pointer_t    baseaddr;
-
-    // the bias address
+    // the load bias address of the dynamic library
     by_pointer_t    biasaddr;
 
     // the .dynsym and .dynstr sections
@@ -203,19 +200,42 @@ static by_int_t by_rt_api_level()
     return s_api_level;
 }
 
-// find the base address and real path from the maps
-static by_pointer_t by_fake_find_baseaddr_from_maps(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
+// find the load bias address from the base address
+static by_pointer_t bt_fake_find_biasaddr_from_baseaddr(by_pointer_t baseaddr)
+{
+    // check
+    by_assert_and_check_return_val(baseaddr, by_null);
+
+    // find load bias from program header
+    ElfW(Ehdr)*       ehdr = (ElfW(Ehdr)*)baseaddr;
+    ElfW(Phdr) const* dlpi_phdr = (ElfW(Phdr) const*)(baseaddr + ehdr->e_phoff);
+    by_int_t          dlpi_phnum = ehdr->e_phnum;
+    uintptr_t         min_vaddr = UINTPTR_MAX;
+    for (by_int_t i = 0; i < dlpi_phnum; i++)
+    {
+        ElfW(Phdr) const* phdr = &(dlpi_phdr[i]);
+        if (PT_LOAD == phdr->p_type)
+        {
+            if (min_vaddr > phdr->p_vaddr)
+                min_vaddr = phdr->p_vaddr;
+        }
+    }
+    return min_vaddr != UINTPTR_MAX? baseaddr - min_vaddr : by_null;
+}
+
+// find the load bias address and real path from the maps
+static by_pointer_t by_fake_find_biasaddr_from_maps(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
 {
     // check
     by_assert_and_check_return_val(filename && realpath && realmaxn, by_null);
 
     // trace
-    by_trace("find baseaddr of %s from maps", filename);
+    by_trace("find biasaddr of %s from maps", filename);
 
     // find it
     by_char_t    line[512];
     by_char_t    page_attr[10];
-    by_pointer_t baseaddr = by_null;
+    by_pointer_t biasaddr = by_null;
     FILE* fp = fopen("/proc/self/maps", "r");
     if (fp)
     {
@@ -234,8 +254,8 @@ static by_pointer_t by_fake_find_baseaddr_from_maps(by_char_t const* filename, b
                     if (page_attr[3] != 'p') continue;
                     if (0 != offset) continue;
 
-                    // get base address
-                    baseaddr = (by_pointer_t)start;
+                    // get load bias address
+                    biasaddr = bt_fake_find_biasaddr_from_baseaddr((by_pointer_t)start);
 
                     // get real path
                     if (filename[0] == '/')
@@ -253,44 +273,56 @@ static by_pointer_t by_fake_find_baseaddr_from_maps(by_char_t const* filename, b
                     else realpath[0] = '\0';
 
                     // trace
-                    by_trace("realpath: %s, baseaddr: %p found!", realpath, baseaddr);
+                    by_trace("realpath: %s, biasaddr: %p found!", realpath, biasaddr);
                 }
                 break;
             }
         }
         fclose(fp);
     }
-    return baseaddr;
+    return biasaddr;
 }
 
 // the callback of dl_iterate_phdr()
-static by_int_t by_fake_find_baseaddr_from_linker_cb(struct dl_phdr_info* info, size_t size, by_pointer_t udata)
+static by_int_t by_fake_find_biasaddr_from_linker_cb(struct dl_phdr_info* info, size_t size, by_pointer_t udata)
 {
     // check
     by_cpointer_t* args = (by_cpointer_t*)udata;
     by_check_return_val(args, 1);
     by_check_return_val(info && info->dlpi_addr && info->dlpi_name && info->dlpi_name[0] != '\0', 0);
 
-    // find library filename
-    by_char_t const* filename  = (by_char_t const*)args[0];
-    by_pointer_t*    pbaseaddr = (by_pointer_t*)&args[3];
+    // get filename
+    by_char_t const* filename = by_null;
+    by_char_t const* filepath = (by_char_t const*)args[0];
+    by_assert_and_check_return_val(filepath, 1);
+    if (filepath[0] == '/')
+    {
+        by_char_t const* p = filepath + strlen(filepath);
+        while (p >= filepath && *p != '/')
+            p--;
+        if (p >= filepath && *p == '/') filename = p + 1;
+    }
+
+    // find library, we can also get full path of dlpi_name from maps
+    by_pointer_t*    pbiasaddr = (by_pointer_t*)&args[3];
     by_char_t*       realpath  = (by_char_t*)args[1];
     by_size_t        realmaxn  = (by_size_t)args[2];
-    if (filename && strstr(info->dlpi_name, filename))
+    if ((filepath && strstr(info->dlpi_name, filepath)) ||
+        (filename && !strcmp(info->dlpi_name, filename))) // dlpi_name ma ybe not full path, e.g. libart.so
     {
-        // save base address
-        *pbaseaddr = (by_pointer_t)info->dlpi_addr;
+        // save load bias address
+        *pbiasaddr = (by_pointer_t)info->dlpi_addr;
 
         // get real path
-        if (filename[0] == '/')
-            strlcpy(realpath, filename, realmaxn);
+        if (filepath[0] == '/')
+            strlcpy(realpath, filepath, realmaxn);
         else if (info->dlpi_name[0] == '/')
             strlcpy(realpath, info->dlpi_name, realmaxn);
         // TODO
         else realpath[0] = '\0';
 
         // trace
-        by_trace("realpath: %s, baseaddr: %p found!", realpath, info->dlpi_addr);
+        by_trace("realpath: %s, biasaddr: %p found!", realpath, (by_pointer_t)info->dlpi_addr);
 
         // found, stop it
         return 1;
@@ -298,34 +330,37 @@ static by_int_t by_fake_find_baseaddr_from_linker_cb(struct dl_phdr_info* info, 
     return 0;
 }
 
-// find the base address and real path from the maps
-static by_pointer_t by_fake_find_baseaddr_from_linker(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
+// find the load bias address and real path from the maps
+static by_pointer_t by_fake_find_biasaddr_from_linker(by_char_t const* filepath, by_char_t* realpath, by_size_t realmaxn)
 {
     // check
-    by_assert_and_check_return_val(dl_iterate_phdr && filename && realpath && realmaxn, by_null);
+    by_assert_and_check_return_val(dl_iterate_phdr && filepath && realpath && realmaxn, by_null);
 
     // trace
-    by_trace("find baseaddr of %s from linker", filename);
+    by_trace("find biasaddr of %s from linker", filepath);
 
-    // find baseaddr
+    // find biasaddr
     by_cpointer_t args[4];
-    args[0] = (by_cpointer_t)filename;
+    args[0] = (by_cpointer_t)filepath;
     args[1] = (by_cpointer_t)realpath;
     args[2] = (by_cpointer_t)realmaxn;
     args[3] = by_null;
     if (g_linker_mutex) pthread_mutex_lock(g_linker_mutex);
-    dl_iterate_phdr(by_fake_find_baseaddr_from_linker_cb, args);
+    dl_iterate_phdr(by_fake_find_biasaddr_from_linker_cb, args);
     if (g_linker_mutex) pthread_mutex_unlock(g_linker_mutex);
     return args[3];
 }
 
-// find the base address and real path
-static by_pointer_t by_fake_find_baseaddr(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
+// find the load bias address and real path
+static by_pointer_t by_fake_find_biasaddr(by_char_t const* filename, by_char_t* realpath, by_size_t realmaxn)
 {
     by_assert_and_check_return_val(filename && realpath, by_null);
+    by_pointer_t biasaddr = by_null;
     if (dl_iterate_phdr && 0 != strcmp(filename, BY_LINKER_NAME))
-        return by_fake_find_baseaddr_from_linker(filename, realpath, realpath);
-    return by_fake_find_baseaddr_from_maps(filename, realpath, realmaxn);
+        biasaddr = by_fake_find_biasaddr_from_linker(filename, realpath, realpath);
+    if (!biasaddr)
+        biasaddr = by_fake_find_biasaddr_from_maps(filename, realpath, realmaxn);
+    return biasaddr;
 }
 
 // open map file
@@ -383,14 +418,13 @@ static by_pointer_t by_fake_dlsym(by_fake_dlctx_ref_t dlctx, by_char_t const* sy
         for (i = 0; i < dynsym_num; i++, dynsym++)
         {
             by_char_t const* name = dynstr + dynsym->st_name;
-            if ((by_pointer_t)name < end && strcmp(name, symbol) == 0 &&
-                    dlctx->baseaddr + dynsym->st_value > dlctx->biasaddr)
+            if ((by_pointer_t)name < end && strcmp(name, symbol) == 0)
             {
                 /* NB: sym->st_value is an offset into the section for relocatables,
                  * but a VMA for shared libs or exe files, so we have to subtract the bias
                  */
-                by_pointer_t symboladdr = (by_pointer_t)(dlctx->baseaddr + dynsym->st_value - dlctx->biasaddr);
-                by_trace("dlsym(%s): found at .dynsym/%p = %p + %x - %p", symbol, symboladdr, dlctx->baseaddr, (by_int_t)dynsym->st_value, dlctx->biasaddr);
+                by_pointer_t symboladdr = (by_pointer_t)(dlctx->biasaddr + dynsym->st_value);
+                by_trace("dlsym(%s): found at .dynsym/%p = %p + %x", symbol, symboladdr, dlctx->biasaddr, (by_int_t)dynsym->st_value);
                 return symboladdr;
             }
         }
@@ -405,11 +439,10 @@ static by_pointer_t by_fake_dlsym(by_fake_dlctx_ref_t dlctx, by_char_t const* sy
         for (i = 0; i < symtab_num; i++, symtab++)
         {
             by_char_t const* name = strtab + symtab->st_name;
-            if ((by_pointer_t)name < end && strcmp(name, symbol) == 0 &&
-                    dlctx->baseaddr + symtab->st_value > dlctx->biasaddr)
+            if ((by_pointer_t)name < end && strcmp(name, symbol) == 0)
             {
-                by_pointer_t symboladdr = (by_pointer_t)(dlctx->baseaddr + symtab->st_value - dlctx->biasaddr);
-                by_trace("dlsym(%s): found at .symtab/%p = %p + %x - %p", symbol, symboladdr, dlctx->baseaddr, (by_int_t)symtab->st_value, dlctx->biasaddr);
+                by_pointer_t symboladdr = (by_pointer_t)(dlctx->biasaddr + symtab->st_value);
+                by_trace("dlsym(%s): found at .symtab/%p = %p + %x", symbol, symboladdr, dlctx->biasaddr, (by_int_t)symtab->st_value);
                 return symboladdr;
             }
         }
@@ -424,7 +457,6 @@ static by_int_t by_fake_dlclose(by_fake_dlctx_ref_t dlctx)
     by_assert_and_check_return_val(dlctx, -1);
 
     // clear data
-    dlctx->baseaddr   = by_null;
     dlctx->biasaddr   = by_null;
     dlctx->dynsym     = by_null;
     dlctx->dynstr     = by_null;
@@ -457,46 +489,28 @@ static by_fake_dlctx_ref_t by_fake_dlopen_impl(by_char_t const* filename, by_int
     by_fake_dlctx_ref_t dlctx = by_null;
     do
     {
-        // attempt to find the base address and real path
-        by_pointer_t baseaddr = by_fake_find_baseaddr(filename, realpath, sizeof(realpath));
-        by_check_break(baseaddr);
+        // attempt to find the load bias address and real path
+        by_pointer_t biasaddr = by_fake_find_biasaddr(filename, realpath, sizeof(realpath));
+        by_check_break(biasaddr);
 
         // init context
         dlctx = calloc(1, sizeof(by_fake_dlctx_t));
         by_assert_and_check_break(dlctx);
 
         dlctx->magic    = BY_FAKE_DLCTX_MAGIC;
-        dlctx->baseaddr = baseaddr;
+        dlctx->biasaddr = biasaddr;
 
         // open file
         dlctx->filedata = by_fake_open_file(realpath, &dlctx->filesize);
         by_assert_and_check_break(dlctx->filedata && dlctx->filesize);
 
         // trace
-        by_trace("fake_dlopen: baseaddr: %p, realpath: %s, filesize: %d", baseaddr, realpath, (by_int_t)dlctx->filesize);
+        by_trace("fake_dlopen: biasaddr: %p, realpath: %s, filesize: %d", biasaddr, realpath, (by_int_t)dlctx->filesize);
 
         // get elf
         ElfW(Ehdr)*  elf = (ElfW(Ehdr)*)dlctx->filedata;
         by_pointer_t end = dlctx->filedata + dlctx->filesize;
         by_assert_and_check_break((by_pointer_t)(elf + 1) < end);
-
-        // get load bias from the program header
-        by_int_t     i = 0;
-        by_bool_t    bias_found = by_false;
-        by_pointer_t phoff = dlctx->filedata + elf->e_phoff;
-        for (i = 0; i < elf->e_phnum && phoff; i++, phoff += elf->e_phentsize)
-        {
-            ElfW(Phdr)* ph = (ElfW(Phdr)*)phoff;
-            by_assert_and_check_break((by_pointer_t)(ph + 1) <= end);
-
-            if ((PT_LOAD == ph->p_type) && (0 == ph->p_offset))
-            {
-                dlctx->biasaddr = (by_pointer_t)ph->p_vaddr;
-                bias_found = by_true;
-                break;
-            }
-        }
-        by_assert_and_check_break(bias_found);
 
         // get .shstrtab section
         by_pointer_t shoff = dlctx->filedata + elf->e_shoff;
@@ -507,7 +521,8 @@ static by_fake_dlctx_ref_t by_fake_dlopen_impl(by_char_t const* filename, by_int
         by_assert_and_check_break(shstr < end);
 
         // parse elf sections
-        by_bool_t    broken = by_false;
+        by_int_t  i = 0;
+        by_bool_t broken = by_false;
         for (i = 0; !broken && i < elf->e_shnum && shoff; i++, shoff += elf->e_shentsize)
         {
             // get section
@@ -912,7 +927,3 @@ by_int_t by_dlclose(by_pointer_t handle)
     // do dlclose
     return (dlctx->magic == BY_FAKE_DLCTX_MAGIC)? by_fake_dlclose(dlctx) : dlclose(handle);
 }
-
-
-
-
