@@ -33,6 +33,7 @@
 #include <inttypes.h>
 #include <elf.h>
 #include <link.h>
+#include <pthread.h>
 #include <sys/system_properties.h>
 
 /* //////////////////////////////////////////////////////////////////////////////////////
@@ -348,7 +349,7 @@ static by_pointer_t by_fake_find_biasaddr_from_linker(by_char_t const* filepath,
     if (g_linker_mutex) pthread_mutex_lock(g_linker_mutex);
     dl_iterate_phdr(by_fake_find_biasaddr_from_linker_cb, args);
     if (g_linker_mutex) pthread_mutex_unlock(g_linker_mutex);
-    return args[3];
+    return (by_pointer_t)args[3];
 }
 
 // find the load bias address and real path
@@ -357,7 +358,7 @@ static by_pointer_t by_fake_find_biasaddr(by_char_t const* filename, by_char_t* 
     by_assert_and_check_return_val(filename && realpath, by_null);
     by_pointer_t biasaddr = by_null;
     if (dl_iterate_phdr && 0 != strcmp(filename, BY_LINKER_NAME))
-        biasaddr = by_fake_find_biasaddr_from_linker(filename, realpath, realpath);
+        biasaddr = by_fake_find_biasaddr_from_linker(filename, realpath, realmaxn);
     if (!biasaddr)
         biasaddr = by_fake_find_biasaddr_from_maps(filename, realpath, realmaxn);
     return biasaddr;
@@ -927,3 +928,8 @@ by_int_t by_dlclose(by_pointer_t handle)
     // do dlclose
     return (dlctx->magic == BY_FAKE_DLCTX_MAGIC)? by_fake_dlclose(dlctx) : dlclose(handle);
 }
+
+
+
+
+
