@@ -202,7 +202,7 @@ static by_int_t by_rt_api_level()
 }
 
 // find the load bias address from the base address
-static by_pointer_t bt_fake_find_biasaddr_from_baseaddr(by_pointer_t baseaddr)
+static by_pointer_t by_fake_find_biasaddr_from_baseaddr(by_pointer_t baseaddr)
 {
     // check
     by_assert_and_check_return_val(baseaddr, by_null);
@@ -256,7 +256,7 @@ static by_pointer_t by_fake_find_biasaddr_from_maps(by_char_t const* filename, b
                     if (0 != offset) continue;
 
                     // get load bias address
-                    biasaddr = bt_fake_find_biasaddr_from_baseaddr((by_pointer_t)start);
+                    biasaddr = by_fake_find_biasaddr_from_baseaddr((by_pointer_t)start);
 
                     // get real path
                     if (filename[0] == '/')
